@@ -1,2 +1,2 @@
 # printer_police
-Source code for the ESP32 communications, notes and data analysis
+Source code and notes for the ESP32 communications and data analysis
