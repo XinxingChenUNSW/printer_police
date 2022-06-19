@@ -1,23 +1,57 @@
 import socket
+import csv
+from struct import unpack
 
+# Set up socket
 s = socket.socket()
+s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 s.bind(('172.20.10.2', 5000))
 s.listen(0)
 
 print(s.getsockname())
 
+# Define start and stop bytes
+start_bytes = "COVID".encode('utf-8')
+stop_bytes = "DOVIC".encode('utf-8')
+
+total_size = 5
+
+# Csv writer
+f = open('data_out.csv', 'w')
+writer = csv.writer(f)
+
 while True:
     client, addr = s.accept()
+    print("Connected to client, writing to csv...")
 
     while True:
-        content = client.recv(32)
+        content = client.recv(60)
+
         if len(content) == 0:
             break
-        else:
-            print(content)
-            pass
 
-    # client.send(bytes('{\"accel\",\"gyro\",\"time\":1}', "utf-8"))
+        curr_ptr = -1
+
+        # Find start bytes
+        for i in range(26):
+            if content[i:i+len(start_bytes)] == start_bytes:
+                
+                curr_ptr = i + len(start_bytes)
+                break
+        
+        if curr_ptr == -1:
+            continue
+
+        data_row = []
+
+        # Decode bytes
+        for _ in range(total_size):
+            val = unpack('f', content[curr_ptr: curr_ptr+4])[0]
+            data_row.append(val)
+            curr_ptr += 4
+            
+        writer.writerow(data_row)
+
     print("Closing connection")
     client.close()
