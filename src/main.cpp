@@ -1,17 +1,20 @@
 #include "Arduino.h"
 #include <WiFiManager.h>
+
 /*
-In platform IO install the libraries
+  In platform IO install the libraries
   HX711_ADC by Olav Kallhovd 
   MPU9250_WE by Wolfgang Ewald
   Encoder by Paul Stoffregen (this is untested so you may have to find a different one if it doesnt work)
-
 */
+
 
 // Select which test you want to run by commenting the ones you dont (this is a compiled setting)
 #define LOAD_CELLS
 #define MPU
 #define ENCODER
+// Enable or disable wifi
+//#define WIFI
 // Load cell amplifier pin numbers
 #define LOAD_DOUT_1 21
 #define LOAD_SCK_1 22
@@ -28,6 +31,9 @@ In platform IO install the libraries
 #define PIN_A 13
 #define PIN_B 15
 
+TaskHandle_t Task1;
+TaskHandle_t Task2;
+
 // If we want to see the accelerometer/gyro data
 #ifdef MPU
 // Includes
@@ -39,14 +45,13 @@ In platform IO install the libraries
 TwoWire I2Cone = TwoWire(0);
 TwoWire I2Ctwo = TwoWire(1);
 
-TaskHandle_t Task1;
-TaskHandle_t Task2;
-
 // Creating the Acc/gyro instances 
 MPU6500_WE MPU_1 = MPU6500_WE(&I2Cone, MPU6500_ADDR);
 MPU6500_WE MPU_2 = MPU6500_WE(&I2Ctwo, MPU6500_ADDR);
 // c++ throws an error if we try to call this before its defined
 void configureMPU(MPU6500_WE *mpu);
+// What we need to divide the MPU values by 
+#define MPU_DIVISOR 16384
 #endif
 
 // If we want to see the load cells data
@@ -63,15 +68,10 @@ HX711_ADC LoadCell_2(LOAD_DOUT_2, LOAD_SCK_2); //HX711 2
 // Encoder
 #ifdef ENCODER
 #include <ESP32Encoder.h>
+#include <InterruptEncoder.h>
 
 ESP32Encoder encoder;
-ESP32Encoder encoder2;
-
-// timer and flag for example, not needed for encoders
-unsigned long encoder2lastToggled;
-bool encoder2Paused = false;
-
-
+InterruptEncoder Iencoder;
 
 // Change these two numbers to the pins connected to your encoder.
 //   Best Performance: both pins have interrupt capability
@@ -84,6 +84,9 @@ bool encoder2Paused = false;
 unsigned long t = 0;
 
 void getSensorData(void * pvParameters) {
+
+  Serial.println("Function is running on core: " + xPortGetCoreID());
+
   while(true){
     #ifdef LOAD_CELLS
     static boolean newDataReady = 0;
@@ -99,31 +102,15 @@ void getSensorData(void * pvParameters) {
         float a = LoadCell_1.getData();
         float b = LoadCell_2.getData();
         // This is where you would hook in to get the values from the load cells
-        Serial.print("Load_cell 1 output val: ");
-        Serial.print(a);
-        Serial.print("    Load_cell 2 output val: ");
+        Serial.print("L1: ");
+        Serial.println(a);
+        Serial.print("L2: ");
         Serial.println(b);
         newDataReady = 0;
         t = millis();
       }
     }
-    // allows for zeroing of the load cells from the terminal
-    // receive command from serial terminal, send 't' to initiate tare operation:
-    if (Serial.available() > 0) {
-      char inByte = Serial.read();
-      if (inByte == 't') {
-        LoadCell_1.tareNoDelay();
-        LoadCell_2.tareNoDelay();
-      }
-    }
-
-    //check if last tare operation is complete
-    if (LoadCell_1.getTareStatus() == true) {
-      Serial.println("Tare load cell 1 complete");
-    }
-    if (LoadCell_2.getTareStatus() == true) {
-      Serial.println("Tare load cell 2 complete");
-    }
+    
     #endif
 
     #ifdef MPU
@@ -138,77 +125,56 @@ void getSensorData(void * pvParameters) {
     xyzFloat ggValue_2 = MPU_2.getGValues();
     float resultantG_2 = MPU_2.getResultantG(ggValue_2);
 
-    Serial.print("Acc1 (x,y,z): (");
-    Serial.print(gValue_1.x / 4096);
-    Serial.print(",");
-    Serial.print(gValue_1.y / 4096);
-    Serial.print(",");
-    Serial.print(gValue_1.z / 4096);
-    Serial.print(")");
-    Serial.print(" Gyro1: (");
-    Serial.print(gyr_1.x);
-    Serial.print(",");
-    Serial.print(gyr_1.y);
-    Serial.print(",");
-    Serial.print(gyr_1.z);
-    Serial.print(") Acc2: (");
-    Serial.print(gValue_2.x / 4096);
-    Serial.print(",");
-    Serial.print(gValue_2.y / 4096);
-    Serial.print(",");
-    Serial.print(gValue_2.z / 4096);
-    Serial.print(")");
-    Serial.print(" Gyro2: (");
-    Serial.print(gyr_2.x);
-    Serial.print(",");
-    Serial.print(gyr_2.y);
-    Serial.print(",");
-    Serial.print(gyr_2.z);
+    Serial.print("A1: (");
+    Serial.print(gValue_1.x / MPU_DIVISOR, 8);
+    Serial.print(", ");
+    Serial.print(gValue_1.y / MPU_DIVISOR, 8);
+    Serial.print(", ");
+    Serial.print(gValue_1.z / MPU_DIVISOR, 8);
     Serial.println(")");
-    Serial.print("Resultant g_1: ");
-    Serial.println(resultantG_1); // should always be 1 g if only gravity acts on the sensor.
-    Serial.println();
-    Serial.print("Resultant g_2: ");
-    Serial.println(resultantG_2); // should always be 1 g if only gravity acts on the sensor.
-    Serial.println();
+    Serial.print("G1: (");
+    Serial.print(gyr_1.x, 8);
+    Serial.print(", ");
+    Serial.print(gyr_1.y, 8);
+    Serial.print(", ");
+    Serial.print(gyr_1.z, 8);
+    Serial.println(")");
+    Serial.print("A2: (");
+    Serial.print(gValue_2.x / MPU_DIVISOR, 8);
+    Serial.print(", ");
+    Serial.print(gValue_2.y / MPU_DIVISOR, 8);
+    Serial.print(", ");
+    Serial.print(gValue_2.z / MPU_DIVISOR, 8);
+    Serial.println(")");
+    Serial.print("G2: (");
+    Serial.print(gyr_2.x, 8);
+    Serial.print(", ");
+    Serial.print(gyr_2.y, 8);
+    Serial.print(", ");
+    Serial.print(gyr_2.z, 8);
+    Serial.println(")");
+    Serial.print("RG1: ");
+    Serial.println(resultantG_1, 8); // should always be 1 g if only gravity acts on the sensor.
+    Serial.print("RG2: ");
+    Serial.println(resultantG_2, 8); // should always be 1 g if only gravity acts on the sensor.
 
-    Serial.print("Current code ID in loop is SDFDSFDSFDSF: ");
-    Serial.println(xPortGetCoreID());
-    delay(200);
+    
     #endif
 
     #ifdef ENCODER
-    Serial.println("TESTING THIS ENCODER CODE");
     // Loop and read the count
-    Serial.println("Encoder count = " + String((int32_t)encoder.getCount()) + " " + String((int32_t)encoder2.getCount()));
-    delay(100);
+    Serial.println("E1: " + String((int32_t)encoder.getCount()));// + "\nE2: " + String((int32_t)encoder2.getCount()));
+    // Serial.println("IE1: " + String((int32_t)Iencoder.read()));
 
-    // every 5 seconds toggle encoder 2
-    if (millis() - encoder2lastToggled >= 5000) {
-      if(encoder2Paused) {
-        Serial.println("Resuming Encoder 2");
-        encoder2.resumeCount();
-      } else {
-        Serial.println("Paused Encoder 2");
-        encoder2.pauseCount();
-      }
-
-      encoder2Paused = !encoder2Paused;
-      encoder2lastToggled = millis();
-    }
     #endif
+
+    // Serial.println("AR A: " + String((int32_t)digitalRead(PIN_A)));
+    // Serial.println("AR B: " + String((int32_t)digitalRead(PIN_B)));
+
+    delay(100);
   }
 }
 
-void Task2code( void * pvParameters ){
-  String taskMessage = "Task 2 running on core ";
-  taskMessage = taskMessage + xPortGetCoreID();
-
-  while(true){
-      Serial.println(taskMessage);
-      delay(1000);
-  }
-}
 
 void IRAM_ATTR isr() {
   int i = 2;
@@ -269,6 +235,25 @@ void setup() {
   //   if (!loadcell_1_rdy) loadcell_1_rdy = LoadCell_1.startMultiple(stabilizingtime, _tare);
   //   if (!loadcell_2_rdy) loadcell_2_rdy = LoadCell_2.startMultiple(stabilizingtime, _tare);
   // }
+
+    // // allows for zeroing of the load cells from the terminal
+    // // receive command from serial terminal, send 't' to initiate tare operation:
+    // if (Serial.available() > 0) {
+    //   char inByte = Serial.read();
+    //   if (inByte == 't') {
+    //     LoadCell_1.tareNoDelay();
+    //     LoadCell_2.tareNoDelay();
+    //   }
+    // }
+
+    // //check if last tare operation is complete
+    // if (LoadCell_1.getTareStatus() == true) {
+    //   Serial.println("Tare load cell 1 complete");
+    // }
+    // if (LoadCell_2.getTareStatus() == true) {
+    //   Serial.println("Tare load cell 2 complete");
+    // }
+
   LoadCell_1.tare();
   LoadCell_2.tare();
   if (LoadCell_1.getTareTimeoutFlag()) {
@@ -280,48 +265,10 @@ void setup() {
   LoadCell_1.setCalFactor(calibrationValue_1); // user set calibration value (float)
   LoadCell_2.setCalFactor(calibrationValue_2); // user set calibration value (float)
   Serial.println("Loadcell startup is complete");
-
-  Serial.print("Current code ID in startup is: ");
-  Serial.println(xPortGetCoreID());
-
-
-    // Enable the weak pull down resistors
-
-    //ESP32Encoder::useInternalWeakPullResistors=DOWN;
-    // Enable the weak pull up resistors
-    ESP32Encoder::useInternalWeakPullResistors=UP;
-
-    // use pin 19 and 18 for the first encoder
-    encoder.attachHalfQuad(19, 18);
-    // use pin 17 and 16 for the second encoder
-    encoder2.attachHalfQuad(17, 16);
-      
-    // set starting count value after attaching
-    encoder.setCount(37);
-
-    // clear the encoder's raw count and set the tracked count to zero
-    encoder2.clearCount();
-    Serial.println("Encoder Start = " + String((int32_t)encoder.getCount()));
-    // set the lastToggle
-    encoder2lastToggled = millis();
-
-
-
-      // Initialise WiFi scan
-    init_wifi();
-
-    // Assign wifi tasks to Core 2
-    xTaskCreatePinnedToCore(wifiTask, "SumTask", 5000, NULL, 2, &Task2, 1);
-
-    xTaskCreatePinnedToCore(
-                  getSensorData,   /* Task function. */
-                  "Task1",     /* name of task. */
-                  5000,       /* Stack size of task */
-                  NULL,        /* parameter of the task */
-                  1,           /* priority of the task */
-                  &Task1,      /* Task handle to keep track of created task */
-                  0); 
   #endif
+
+
+    
 
   // Start up code for the 
   #ifdef MPU
@@ -332,17 +279,63 @@ void setup() {
   configureMPU(&MPU_2);
   delay(200);
   #endif 
+
   #ifdef ENCODER
-  // If the encoder requires setup add it here
+    ESP32Encoder::useInternalWeakPullResistors=NONE;
+    // ESP32Encoder::useInternalWeakPullResistors=UP;
+    encoder.attachFullQuad(PIN_A, PIN_B);
+    encoder.clearCount();
+    Serial.println("Encoder Start = " + String((int32_t)encoder.getCount()));
+
+    // Iencoder = InterruptEncoder();
+    // Iencoder.attach(PIN_A, PIN_B);
+
   #endif
+
+    // Initialise WiFi scan
+    #ifdef WIFI
+    init_wifi();
+    // Assign wifi tasks to Core 2
+    xTaskCreatePinnedToCore(wifiTask, "SumTask", 5000, NULL, 2, &Task2, 1);
+    #endif
+
+    xTaskCreatePinnedToCore(
+                  getSensorData,   /* Task function. */
+                  "Task1",     /* name of task. */
+                  5000,       /* Stack size of task */
+                  NULL,        /* parameter of the task */
+                  1,           /* priority of the task */
+                  &Task1,      /* Task handle to keep track of created task */
+                  0); 
+
+
 }
 
 void loop() {
-  delay(100);
-
-
-
+  delay(10000);
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -408,7 +401,7 @@ void configureMPU(MPU6500_WE *mpu){
    *  It can only be applied if the corresponding DLPF is enabled and 0<DLPF<7!
    *  Divider is a number 0...255
    */
-  mpu->setSampleRateDivider(5);
+  mpu->setSampleRateDivider(0);
 
   /*  MPU6500_GYRO_RANGE_250       250 degrees per second (default)
    *  MPU6500_GYRO_RANGE_500       500 degrees per second
@@ -422,7 +415,7 @@ void configureMPU(MPU6500_WE *mpu){
    *  MPU6500_ACC_RANGE_8G      8 g   
    *  MPU6500_ACC_RANGE_16G    16 g
    */
-  mpu->setAccRange(MPU6500_ACC_RANGE_8G);
+  mpu->setAccRange(MPU6500_ACC_RANGE_2G);
 
   /*  Enable/disable the digital low pass filter for the accelerometer 
    *  If disabled the bandwidth is 1.13 kHz, delay is 0.75 ms, output rate is 4 kHz
@@ -486,7 +479,7 @@ void wifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 void clientLost(WiFiEvent_t event, WiFiEventInfo_t info) {
-	Serial.print("CLIENNT LOST D:");
+	Serial.print("CLIENT LOST D:");
 }
 
 void configModeCallback (WiFiManager *myWiFiManager) {

@@ -1,8 +1,8 @@
-import socket
+from socket import *
 
-s = socket.socket()
+s = socket(AF_INET, SOCK_STREAM)
 
-s.bind(('192.168.118.137', 5000))
+s.bind(('172.20.10.9', 5000))
 s.listen(0)
 
 print(s.getsockname())
