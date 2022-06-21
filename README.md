@@ -1,6 +1,11 @@
 # printer_police
 Source code for the ESP32 communications, notes and data analysis
 
+In platform IO install the libraries:
+- HX711_ADC by Olav Kallhovd 
+- MPU9250_WE by Wolfgang Ewald
+- Encoder by Paul Stoffregen (this is untested so you may have to find a different one if it doesnt work)
+
 # How to find your wifi IP address
 You need to know your wifi ip address for your network before connecting to wifi on the exp32
 
