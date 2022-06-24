@@ -70,9 +70,9 @@ void getSensorData(void * pvParameters) {
     Serial.print(String((int32_t) (t - initialT)) + " ");
 
     #ifdef LOAD_CELLS
-      LoadCell_1.update(); LoadCell_2.update();
-      float l1 = LoadCell_1.getData(); float l2 = LoadCell_2.getData();
-      Serial.print(String(l1, 8) + " " + String(l2, 8) + " ");
+      // only get data if update sucessfully returns with 1 to only fetch valid data
+      if (LoadCell_1.update()) {float l1 = LoadCell_1.getData(); Serial.print(String(l1, 8) + " ");}
+      if (LoadCell_2.update()) {float l2 = LoadCell_2.getData(); Serial.print(String(l2, 8) + " ");}
     #endif
 
     #ifdef MPU
@@ -129,7 +129,14 @@ void setup() {
     LoadCell_1.begin(); LoadCell_2.begin();
     float calibrationValue_1 = 1.0; // calibrationValue_1 = LoadCell_1.getNewCalibration(-500);
     float calibrationValue_2 = 1.0; // calibrationValue_2 = LoadCell_2.getNewCalibration(-500);
-    LoadCell_1.tare(); LoadCell_2.tare();
+    unsigned long stabilisingtime = 2000; // tare precision improved by adding some stabilising time
+    boolean _tare = true; // set this to false if you don't want tare to be performed in the next step
+    byte loadcell_1_rdy = 0;
+    byte loadcell_2_rdy = 0;
+    while ((loadcell_1_rdy + loadcell_2_rdy) < 2) { //run startup, stabilization and tare, both modules simultaniously
+      if (!loadcell_1_rdy) loadcell_1_rdy = LoadCell_1.startMultiple(stabilisingtime, _tare);
+      if (!loadcell_2_rdy) loadcell_2_rdy = LoadCell_2.startMultiple(stabilisingtime, _tare);
+    }
     if (LoadCell_1.getTareTimeoutFlag()) Serial.println("Timeout, check MCU>HX711 no.1 wiring and pin designations");
     if (LoadCell_2.getTareTimeoutFlag()) Serial.println("Timeout, check MCU>HX711 no.2 wiring and pin designations");
     LoadCell_1.setCalFactor(calibrationValue_1); // user set calibration value (float)
