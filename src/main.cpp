@@ -72,7 +72,7 @@ void getSensorData(void * pvParameters) {
     #ifdef LOAD_CELLS
       LoadCell_1.update(); LoadCell_2.update();
       float l1 = LoadCell_1.getData(); float l2 = LoadCell_2.getData();
-      Serial.print(String(l1) + " " + String(l2) + " ");
+      Serial.print(String(l1, 8) + " " + String(l2, 8) + " ");
     #endif
 
     #ifdef MPU
