@@ -6,7 +6,7 @@
 #define LOAD_CELLS
 #define MPU
 #define ENCODER
-//#define WIFI
+#define WIFI
 
 
 
@@ -56,7 +56,28 @@ TaskHandle_t Task2;
 // The time object for looping without using delay
 unsigned long t = 0;
 
+struct gyroData {
+  float x;
+  float y;
+  float z;
+};
 
+struct imuData {
+  float x;
+  float y;
+  float z;
+};
+
+struct SensorData {
+  float loadCell[2];
+  struct gyroData gyro[2];
+  struct imuData imu[2];
+  int32_t encoder;
+};
+
+
+// Global buffer for storing and sending sensor data via WiFi
+struct SensorData sensorData;
 
 void getSensorData(void * pvParameters) {
   // Defines the target read interval - may not be possible as reading and printing takes clock cycles
@@ -69,10 +90,17 @@ void getSensorData(void * pvParameters) {
     t = millis();
     Serial.print(String((int32_t) (t - initialT)) + " ");
 
+
     #ifdef LOAD_CELLS
       // only get data if update sucessfully returns with 1 to only fetch valid data
-      if (LoadCell_1.update()) {float l1 = LoadCell_1.getData(); Serial.print(String(l1, 8) + " ");}
-      if (LoadCell_2.update()) {float l2 = LoadCell_2.getData(); Serial.print(String(l2, 8) + " ");}
+      if (LoadCell_1.update()) {
+        float l1 = LoadCell_1.getData(); //Serial.print(String(l1, 8) + " ");
+        sensorData.loadCell[0] = l1;
+      }
+      if (LoadCell_2.update()) {
+        float l2 = LoadCell_2.getData(); //Serial.print(String(l2, 8) + " ");
+        sensorData.loadCell[1] = l2;
+      }
     #endif
 
     #ifdef MPU
@@ -81,17 +109,23 @@ void getSensorData(void * pvParameters) {
       xyzFloat gyr_1 = MPU_1.getGyrValues();
       xyzFloat gyr_2 = MPU_2.getGyrValues();
 
-      Serial.print(String(acc_1.x / MPU_DIVISOR, 8) + " " + String(acc_1.y / MPU_DIVISOR, 8) + " " + String(acc_1.z / MPU_DIVISOR, 8) + " ");
-      Serial.print(String(gyr_1.x, 8) + " " + String(gyr_1.y, 8) + " " + String(gyr_1.z, 8) + " ");
-      Serial.print(String(acc_2.x / MPU_DIVISOR, 8) + " " + String(acc_2.y / MPU_DIVISOR, 8) + " " + String(acc_2.z / MPU_DIVISOR, 8) + " ");
-      Serial.print(String(gyr_2.x, 8) + " " + String(gyr_2.y, 8) + " " + String(gyr_2.z, 8) + " ");
+      sensorData.imu[0] = {.x = acc_1.x, .y = acc_1.y, .z = acc_1.z};
+      sensorData.imu[1] = {.x = acc_2.x, .y = acc_2.y, .z = acc_2.z};
+      sensorData.gyro[0] = {.x = gyr_1.x, .y = gyr_1.y, .z = gyr_1.z};
+      sensorData.gyro[1] = {.x = gyr_2.x, .y = gyr_2.y, .z = gyr_2.z};
+
+      // Serial.print(String(acc_1.x / MPU_DIVISOR, 8) + " " + String(acc_1.y / MPU_DIVISOR, 8) + " " + String(acc_1.z / MPU_DIVISOR, 8) + " ");
+      // Serial.print(String(gyr_1.x, 8) + " " + String(gyr_1.y, 8) + " " + String(gyr_1.z, 8) + " ");
+      // Serial.print(String(acc_2.x / MPU_DIVISOR, 8) + " " + String(acc_2.y / MPU_DIVISOR, 8) + " " + String(acc_2.z / MPU_DIVISOR, 8) + " ");
+      // Serial.print(String(gyr_2.x, 8) + " " + String(gyr_2.y, 8) + " " + String(gyr_2.z, 8) + " ");
     #endif
 
     #ifdef ENCODER
-      Serial.print(String((int32_t)encoder.getCount()) + " " + String((int32_t)digitalRead(PIN_A)) + " " + String((int32_t)digitalRead(PIN_B)) + " ");
+      // Serial.print(String((int32_t)encoder.getCount()) + " " + String((int32_t)digitalRead(PIN_A)) + " " + String((int32_t)digitalRead(PIN_B)) + " ");
+      sensorData.encoder = encoder.getCount();
     #endif
 
-    Serial.println();
+    // Serial.println();
     // Adaptive wait to reach target delay if possible
     if ((millis() - t) < targetMilliseconds) delay(targetMilliseconds - (millis() - t) + 1); 
   }
@@ -108,9 +142,6 @@ char host[MAX_IP_LEN] = "172.20.10.2";
 
 #define TRIGGER_PIN 0
 
-// Buffer for storing sensor data
-uint8_t buf[200] = {};
-
 WiFiClient client;
 WiFiManager wm;
 
@@ -124,7 +155,7 @@ void setup() {
 
   // Connects to the serial output
   Serial.begin(115200); delay(10);
-
+  
   #ifdef LOAD_CELLS
     LoadCell_1.begin(); LoadCell_2.begin();
     float calibrationValue_1 = 1.0; // calibrationValue_1 = LoadCell_1.getNewCalibration(-500);
@@ -157,7 +188,7 @@ void setup() {
     ESP32Encoder::useInternalWeakPullResistors=NONE;
     encoder.attachFullQuad(PIN_A, PIN_B);
     encoder.clearCount();
-    Serial.println("Encoder Start = " + String((int32_t)encoder.getCount()));
+    // Serial.println("Encoder Start = " + String((int32_t)encoder.getCount()));
   #endif
 
   #ifdef WIFI
@@ -394,20 +425,22 @@ void init_wifi() {
 	WiFi.begin(ssid, password);
 }
 
-void wifi_send_data() {
-	char temp[] = "HELLO THERE";
-	// uint8_t *tempBuf; (uint8_t *)temp;
-	memcpy(buf, temp, sizeof(temp));
-
-
-	client.write(buf, sizeof(buf));
+void wifi_send_data(uint8_t *buf, unsigned int size) {
+  memcpy(buf + size, (const void *)&sensorData, sizeof(sensorData));
+  client.write(buf, sizeof(sensorData) + size);
 }
 
 void wifiTask(void *parameter) {
+
+  // initialise buffer to use for sending sensor data over via wifi
+  char startBytes[] = "START";
+  uint8_t buf[(sizeof(startBytes) + sizeof(sensorData))];
+  memcpy(buf, startBytes, sizeof(startBytes) - 1);
+
 	while (true) {
 		if (WiFi.status() == WL_CONNECTED)
 			if (client.connected())
-				wifi_send_data();
+				wifi_send_data(buf, sizeof(startBytes) - 1);
 			else {
 				WiFi.disconnect();
 				clientConnect();
