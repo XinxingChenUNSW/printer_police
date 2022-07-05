@@ -17,7 +17,7 @@ from typing import List
 import math
 
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
-
+# Data Configurations
 num_bytes = [1,2,3,3,3,3,1]
 data_type = ['i','f','f','f','f','f','i']
 
@@ -40,7 +40,9 @@ plot_y_lims = [[0, 1],
                [0, 1],
                [0, 1]]
 
-# WiFi data gathering process
+'''
+WiFi data gathering process
+'''
 def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
     # Define start and stop bytes
     start_bytes = "START".encode('utf-8')
@@ -50,19 +52,16 @@ def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
 
     while True:
         client, addr = s.accept()
-        # client.settimeout(0.5)
         prev = time.time()
 
         while True:
+            # Read data, in a buffer double the size of the data structure
             content = client.recv(138)
-            curr = time.time()
 
             if len(content) == 0:
                 break
 
             curr_ptr = -1
-
-            # print(content)
 
             # Find start bytes
             for i in range(70):
@@ -79,11 +78,11 @@ def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
 
             # Unpack each struct attribute
             for idx, size in enumerate(num_bytes):
-                # Loop through each float / integer and unpack them
                 if not full_packet_found:
                     break
-
+                # Loop through each float / integer and unpack them
                 for _ in range(size):
+                    # Partial data detected that is not the full data packet
                     if curr_ptr + 4 > len(content):
                         full_packet_found = False
                         break
@@ -94,16 +93,15 @@ def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
             if full_packet_found:
                 data_q.put(data_row)
                 csv_q.put(data_row)
-            # print(data_row)
-            # print(curr - prev)
-            # prev = curr
 
         print("Closing connection")
         client.close()
 
 
+'''
+CSV writing process
+'''
 def csv_process(csv_q: Queue):
-    # Csv writer
     f = open('data_out.csv', 'w')
     writer = csv.writer(f)
 
@@ -113,12 +111,13 @@ def csv_process(csv_q: Queue):
             # flat_data = chain(*data)
             writer.writerow(data)
 
-
+'''
+Connect to wifi
+'''
 def connectWifi():
     # Set up socket
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    # local_ip = socket.gethostbyname(socket.gethostname())
 
     print("Getting WiFi Details...")
     local_ip = input("Enter IPV4 address: ")
@@ -134,6 +133,9 @@ def connectWifi():
 timestamps: List[int] = []
 plot_data: List[List[float]] = None
 
+'''
+Animation callback function for updating plot data
+''' 
 def animate(frame, data_q, lines, axs):
     # data = np.loadtxt(open("data.csv", "rb"), delimiter=",").astype("float")
     global timestamps, plot_data
@@ -142,10 +144,9 @@ def animate(frame, data_q, lines, axs):
         plot_data = [[] for _ in range(lines_to_plot)]
 
     if data_q.empty():
-        # print("EMPTY")
         return lines
-    # print("---")
 
+    # Grab all data points currently in the data queue for plotting
     while not data_q.empty():
         data = data_q.get()
         
@@ -154,21 +155,21 @@ def animate(frame, data_q, lines, axs):
         for i in range(len(plot_data)):
             plot_data[i].append(data[i + 1])
 
-    # Select the last 300 data points to plot
+    # Select the last 100 data points to plot (Abstract into variable)
     if len(timestamps) > 100:
         timestamps = timestamps[-100:]
         for i in range(len(plot_data)):
             plot_data[i] = plot_data[i][-100:]
 
+    # Reset X axes limits for all plots
     for ax in axs:
         ax.set_xlim([timestamps[0], timestamps[-1]])
 
-    # print(plot_data[0])
-
+    # Set data for each line
     for i in range(len(plot_data)):
         lines[i].set_data(timestamps, plot_data[i])
 
-    # TODO: A subplot for each thing
+    # Code for plotting data
     # data = data_q.get()
     # x = data[-300:, 0]
     # y = data[-300:, 1]
@@ -177,12 +178,17 @@ def animate(frame, data_q, lines, axs):
 
     return lines
 
+'''
+Plotting function
+'''
 def run_plot(data_q: Queue, processes: list):
     style.use("fivethirtyeight")
 
     # fig = plt.figure()
     # ax1 = fig.add_subplot(1,1,1)
+    # Plot two cols, n/2 rows
     fig, axs = plt.subplots(nrows=math.ceil(num_plots/2), ncols=2, figsize=(20, 15))
+    # TODO: Make this plot scrolling or smaller so we can observe all the data
 
     # Flatten axes for easier use
     axs = list(chain(*axs))
@@ -192,12 +198,14 @@ def run_plot(data_q: Queue, processes: list):
 
     # Configure axes and lines
     for ax in axs:
+        # Disable non-used axes
         if pos >= num_plots:
             ax.set_axis_off()
             continue
 
         ax.set_title(plot_names[pos])
         
+        # Assign lines to each axes for plotting data
         for i in range(num_bytes[pos + 1]):
             ax_line, = ax.plot([], [],
                                lw=1,
@@ -205,6 +213,7 @@ def run_plot(data_q: Queue, processes: list):
                                label=ax_labels[pos][i])
             lines.append(ax_line)
 
+        # Axis plotting parameters
         ax.legend(loc="upper left")
         ax.set_ylim(plot_y_lims[pos])
         ax.grid()
@@ -214,7 +223,7 @@ def run_plot(data_q: Queue, processes: list):
     # TODO: Blit TRUE
     ani = animation.FuncAnimation(fig, animate, fargs=(data_q,lines,axs), interval = 10, blit=False)
 
-    # Nice, otherwise I
+    # Set as blockinng for now, close the program by closing the plot window
     # plt.show(block=False)
     plt.show(block=True)
 
@@ -222,21 +231,26 @@ def run_plot(data_q: Queue, processes: list):
     while (exit != ""):
         exit = input("Press Enter to stop: ")
 
+    # Kill all processes
     for process in processes:
         process.terminate()
 
 
-
+'''
+Main functionn
+'''
 def main():
     # Connect to wifi before starting other processes
     s = connectWifi()
 
+    # Setup multiprocessing communication Queues
     data_q = Queue()
     csv_q = Queue()
 
     wifi_p = Process(target=wifi_process, args=(s, data_q, csv_q))
     csv_p = Process(target=csv_process, args=(csv_q,))
 
+    # Start Processes
     wifi_p.start()
     csv_p.start()
 
@@ -247,9 +261,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-def logPrint(line, logQ):
-    now = datetime.datetime.now()
-    timestamp = now.strftime("%H:%M:%S:%f")[:-3]
-    logQ.put([line,timestamp])
