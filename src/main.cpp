@@ -3,10 +3,11 @@
 
 // GLOBAL ENABLES
 // Select which sensors / functionalities are enabled
-#define LOAD_CELLS
-#define MPU
-#define ENCODER
+// #define LOAD_CELLS
+// #define MPU
+// #define ENCODER
 #define WIFI
+#define TESTING
 
 
 
@@ -69,11 +70,15 @@ struct imuData {
 };
 
 struct SensorData {
+  int32_t timestamp;
   float loadCell[2];
   struct gyroData gyro[2];
   struct imuData imu[2];
   int32_t encoder;
 };
+
+// Flag for indicating when data can be sent over wifi
+bool wifi_flag = false;
 
 
 // Global buffer for storing and sending sensor data via WiFi
@@ -88,7 +93,7 @@ void getSensorData(void * pvParameters) {
   // Will change if different sensors are enabled or disabled
   while(true){
     t = millis();
-    Serial.print(String((int32_t) (t - initialT)) + " ");
+    // Serial.print(String((int32_t) (t - initialT)) + " ");
 
 
     #ifdef LOAD_CELLS
@@ -124,6 +129,24 @@ void getSensorData(void * pvParameters) {
       // Serial.print(String((int32_t)encoder.getCount()) + " " + String((int32_t)digitalRead(PIN_A)) + " " + String((int32_t)digitalRead(PIN_B)) + " ");
       sensorData.encoder = encoder.getCount();
     #endif
+
+    #ifdef TESTING
+      sensorData.imu[0] = {.x = 0.5, .y = 0.10, .z = 0.15};
+      sensorData.imu[1] = {.x = 0.20, .y = 0.25, .z = 0.30};
+      sensorData.gyro[0] = {.x = 0.35, .y = 0.40, .z = 0.45};
+      sensorData.gyro[1] = {.x = 0.50, .y = 0.55, .z = 0.55};
+
+      sensorData.loadCell[0] = 0.60;
+      sensorData.loadCell[1] = 0.65;
+
+      sensorData.encoder = 5;
+    #endif
+
+    sensorData.timestamp = t - initialT;
+
+    // TODO: Aggregate N datapoints before sending across wifi
+
+    wifi_flag = true;
 
     // Serial.println();
     // Adaptive wait to reach target delay if possible
@@ -426,8 +449,12 @@ void init_wifi() {
 }
 
 void wifi_send_data(uint8_t *buf, unsigned int size) {
+  if (wifi_flag == false) return;
+
   memcpy(buf + size, (const void *)&sensorData, sizeof(sensorData));
   client.write(buf, sizeof(sensorData) + size);
+
+  wifi_flag = false;
 }
 
 void wifiTask(void *parameter) {
@@ -437,7 +464,11 @@ void wifiTask(void *parameter) {
   uint8_t buf[(sizeof(startBytes) + sizeof(sensorData))];
   memcpy(buf, startBytes, sizeof(startBytes) - 1);
 
+  Serial.println(sizeof(startBytes) + sizeof(sensorData));
+  int target_ms = 100, curr, t;
+
 	while (true) {
+    t = millis();
 		if (WiFi.status() == WL_CONNECTED)
 			if (client.connected())
 				wifi_send_data(buf, sizeof(startBytes) - 1);
@@ -446,9 +477,10 @@ void wifiTask(void *parameter) {
 				clientConnect();
 			}
 		else {
-			
+      // TODO: what we do if WiFi is nont connnnected?
 		}
-		delay(100);
+    curr = millis();
+		if ((curr - t) < target_ms) delay(target_ms - (curr - t) + 1); 
 	}
 }
 
