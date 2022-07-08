@@ -3,11 +3,11 @@
 
 // GLOBAL ENABLES
 // Select which sensors / functionalities are enabled
-// #define LOAD_CELLS
-// #define MPU
-// #define ENCODER
+#define LOAD_CELLS
+#define MPU
+#define ENCODER
 #define WIFI
-#define TESTING
+// #define TESTING
 
 
 
@@ -150,7 +150,7 @@ void getSensorData(void * pvParameters) {
 
     // Serial.println();
     // Adaptive wait to reach target delay if possible
-    if ((millis() - t) < targetMilliseconds) delay(targetMilliseconds - (millis() - t) + 1); 
+    if ((millis() - t) < targetMilliseconds) delay(targetMilliseconds - (millis() - t) + 1);
   }
 }
 
@@ -465,7 +465,7 @@ void wifiTask(void *parameter) {
   memcpy(buf, startBytes, sizeof(startBytes) - 1);
 
   Serial.println(sizeof(startBytes) + sizeof(sensorData));
-  int target_ms = 100, curr, t;
+  int target_ms = 15, curr, t;
 
 	while (true) {
     t = millis();
@@ -481,6 +481,7 @@ void wifiTask(void *parameter) {
 		}
     curr = millis();
 		if ((curr - t) < target_ms) delay(target_ms - (curr - t) + 1); 
+    Serial.println(curr - t);
 	}
 }
 

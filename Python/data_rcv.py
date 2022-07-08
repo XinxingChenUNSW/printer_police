@@ -16,6 +16,11 @@ import numpy as np
 from typing import List
 import math
 
+import time
+import numpy as np
+
+from rollingAverage import rolling_average
+
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
 num_bytes = [1,2,3,3,3,3,1]
@@ -33,17 +38,17 @@ ax_labels = [['L1', 'L2'],
              ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
              ['Count']]
 
-plot_y_lims = [[0, 1],
-               [0, 1],
-               [0, 1],
-               [0, 1],
-               [0, 1],
-               [0, 1]]
+plot_y_lims = [[-50, 50],
+               [-50, 50],
+               [-50, 50],
+               [-50, 50],
+               [-50, 50],
+               [-10000, -5000]]
 
 '''
 WiFi data gathering process
 '''
-def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
+def wifi_process(s: socket, rolling_a_q: Queue) -> None:
     # Define start and stop bytes
     start_bytes = "START".encode('utf-8')
 
@@ -59,9 +64,12 @@ def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
         while True:
             # Read data, in a buffer double the size of the data structure
             content = client.recv(128)
-
             if len(content) == 0:
                 break
+
+            curr_t = time.time()
+            # print(curr_t - prev)
+            prev = curr_t
 
             curr_ptr = -1
 
@@ -93,8 +101,8 @@ def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
                     curr_ptr += 4
 
             if full_packet_found:
-                data_q.put(data_row)
-                csv_q.put(data_row)
+                rolling_a_q.put(data_row)
+                # csv_q.put(data_row)
 
         print("Closing connection")
         client.close()
@@ -134,23 +142,26 @@ def connectWifi():
 
 timestamps: List[int] = []
 plot_data: List[List[float]] = None
+curr_t = 0
+count = 0
 
 '''
 Animation callback function for updating plot data
 ''' 
-def animate(frame, data_q, lines, axs):
+def animate(frame, plot_q, lines, axs):
     # data = np.loadtxt(open("data.csv", "rb"), delimiter=",").astype("float")
     global timestamps, plot_data
+
 
     if plot_data is None:
         plot_data = [[] for _ in range(lines_to_plot)]
 
-    if data_q.empty():
+    if plot_q.empty():
         return lines
 
     # Grab all data points currently in the data queue for plotting
-    while not data_q.empty():
-        data = data_q.get()
+    while not plot_q.empty():
+        data = plot_q.get()
         
         timestamps.append(data[0])
 
@@ -158,10 +169,10 @@ def animate(frame, data_q, lines, axs):
             plot_data[i].append(data[i + 1])
 
     # Select the last 100 data points to plot (Abstract into variable)
-    if len(timestamps) > 100:
-        timestamps = timestamps[-100:]
+    if len(timestamps) > 300:
+        timestamps = timestamps[-300:]
         for i in range(len(plot_data)):
-            plot_data[i] = plot_data[i][-100:]
+            plot_data[i] = plot_data[i][-300:]
 
     # Reset X axes limits for all plots
     for ax in axs:
@@ -183,9 +194,10 @@ def animate(frame, data_q, lines, axs):
 '''
 Plotting function
 '''
-def run_plot(data_q: Queue, processes: list):
+def run_plot(plot_q: Queue, processes: list):
     style.use("fivethirtyeight")
-
+    
+    
     # fig = plt.figure()
     # ax1 = fig.add_subplot(1,1,1)
     # Plot two cols, n/2 rows
@@ -223,7 +235,7 @@ def run_plot(data_q: Queue, processes: list):
         pos += 1
 
     # TODO: Blit TRUE
-    ani = animation.FuncAnimation(fig, animate, fargs=(data_q,lines,axs), interval = 10, blit=False)
+    ani = animation.FuncAnimation(fig, animate, fargs=(plot_q,lines,axs), interval = 1, blit=False)
 
     # Set as blockinng for now, close the program by closing the plot window
     # plt.show(block=False)
@@ -246,19 +258,23 @@ def main():
     s = connectWifi()
 
     # Setup multiprocessing communication Queues
-    data_q = Queue()
+    plot_q = Queue()
+    rolling_a_q = Queue()
     csv_q = Queue()
 
-    wifi_p = Process(target=wifi_process, args=(s, data_q, csv_q))
+    wifi_p = Process(target=wifi_process, args=(s, rolling_a_q))
     csv_p = Process(target=csv_process, args=(csv_q,))
+    processing_p = Process(target=rolling_average, args=(rolling_a_q, csv_q, plot_q))
+
 
     # Start Processes
     wifi_p.start()
     csv_p.start()
+    processing_p.start()
 
-    processes = [wifi_p, csv_p]
+    processes = [wifi_p, csv_p, processing_p]
 
-    run_plot(data_q, processes)
+    run_plot(plot_q, processes)
 
 
 if __name__ == "__main__":
