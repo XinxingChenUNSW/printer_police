@@ -31,7 +31,7 @@ with open("test.csv", "r") as readfile:
             # Store elements from i to i+window_size
             # in list to get the current window
             window = np.array(dataGeneratorMatrix[index : index  + windowSize])
-            # Calculate the average of current window (not avaeraging the timeStep)
+            # Calcu late the average of current window (not avaeraging the timeStep)
             windowAverage = np.mean(window[:,1:len(row)], axis = 0)
 
             timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
@@ -46,4 +46,5 @@ with open("test.csv", "r") as readfile:
                 writer.writerow(windowAverage)
             index+=1
 
+print(dataGeneratorMatrix)
 print("All data Read!")
