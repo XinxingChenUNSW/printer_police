@@ -53,10 +53,12 @@ def wifi_process(s: socket, data_q: Queue, csv_q: Queue) -> None:
     while True:
         client, addr = s.accept()
         prev = time.time()
+        # TODO: Keep track of bytes thrown away
+        stored_bytes = bytearray()
 
         while True:
             # Read data, in a buffer double the size of the data structure
-            content = client.recv(138)
+            content = client.recv(128)
 
             if len(content) == 0:
                 break
@@ -231,7 +233,7 @@ def run_plot(data_q: Queue, processes: list):
     while (exit != ""):
         exit = input("Press Enter to stop: ")
 
-    # Kill all processes
+    # Kill all processes when program is finished
     for process in processes:
         process.terminate()
 
