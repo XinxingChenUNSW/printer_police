@@ -7,6 +7,8 @@
 #define MPU
 #define ENCODER
 #define WIFI
+// #define LOAD_CELL_CALIBRATION_1
+#define LOAD_CELL_CALIBRATION_2
 // #define TESTING
 
 
@@ -37,6 +39,10 @@ void configureMPU(MPU6500_WE *mpu);
 //HX711 constructor (dout pin, sck pin)
 HX711_ADC LoadCell_1(LOAD_DOUT_1, LOAD_SCK_1);
 HX711_ADC LoadCell_2(LOAD_DOUT_2, LOAD_SCK_2);
+#endif
+
+#if defined(LOAD_CELL_CALIBRATION_1) || defined(LOAD_CELL_CALIBRATION_2)
+void calibrate(HX711_ADC &LoadCell);
 #endif
 
 #ifdef ENCODER
@@ -181,7 +187,7 @@ void setup() {
   
   #ifdef LOAD_CELLS
     LoadCell_1.begin(); LoadCell_2.begin();
-    float calibrationValue_1 = 1.0; // calibrationValue_1 = LoadCell_1.getNewCalibration(-500);
+    float calibrationValue_1 = (-15861.51-15822.44-15865.00-15947.65-15809.39)/5; // obtained from 5 samples of calibration of varying weight
     float calibrationValue_2 = 1.0; // calibrationValue_2 = LoadCell_2.getNewCalibration(-500);
     unsigned long stabilisingtime = 2000; // tare precision improved by adding some stabilising time
     boolean _tare = true; // set this to false if you don't want tare to be performed in the next step
@@ -195,6 +201,17 @@ void setup() {
     if (LoadCell_2.getTareTimeoutFlag()) Serial.println("Timeout, check MCU>HX711 no.2 wiring and pin designations");
     LoadCell_1.setCalFactor(calibrationValue_1); // user set calibration value (float)
     LoadCell_2.setCalFactor(calibrationValue_2); // user set calibration value (float)
+
+    #ifdef LOAD_CELL_CALIBRATION_1
+      Serial.println("CALIBRATION FOR LOAD CELL 1, PINS: [" + String(LOAD_DOUT_1) + ", " + String(LOAD_SCK_1) + "]");
+      calibrate(LoadCell_1);
+    #endif
+
+    #ifdef LOAD_CELL_CALIBRATION_2
+      Serial.println("CALIBRATION FOR LOAD CELL 2, PINS: [" + String(LOAD_DOUT_2) + ", " + String(LOAD_SCK_2) + "]");
+      calibrate(LoadCell_2);
+    #endif
+
     Serial.println("Loadcell startup is complete");
   #endif
 
@@ -485,3 +502,57 @@ void wifiTask(void *parameter) {
 	}
 }
 
+#if defined(LOAD_CELL_CALIBRATION_1) || defined(LOAD_CELL_CALIBRATION_2)
+void calibrate(HX711_ADC &LoadCell) {
+  Serial.println("***");
+  Serial.println("Start calibration:");
+  Serial.println("Place the load cell an a level stable surface.");
+  Serial.println("Remove any load applied to the load cell.");
+  Serial.println("Send 't' from serial monitor to set the tare offset.");
+
+  boolean _resume = false;
+  while (_resume == false) {
+    LoadCell.update();
+    if (Serial.available() > 0) {
+      if (Serial.available() > 0) {
+        char inByte = Serial.read();
+        if (inByte == 't') LoadCell.tareNoDelay();
+      }
+    }
+    if (LoadCell.getTareStatus() == true) {
+      Serial.println("Tare complete");
+      _resume = true;
+    }
+  }
+
+  Serial.println("Now, place your known mass on the loadcell.");
+  Serial.println("Then send the weight of this mass (i.e. 100.0) from serial monitor.");
+
+  float known_mass = 0;
+  _resume = false;
+  while (_resume == false) {
+    LoadCell.update();
+    if (Serial.available() > 0) {
+      known_mass = Serial.parseFloat();
+      if (known_mass != 0) {
+        Serial.print("Known mass is: ");
+        Serial.println(known_mass);
+        _resume = true;
+      }
+    }
+  }
+
+  LoadCell.refreshDataSet(); //refresh the dataset to be sure that the known mass is measured correct
+  float newCalibrationValue = LoadCell.getNewCalibration(known_mass); //get the new calibration value
+
+  Serial.print("New calibration value has been set to: ");
+  Serial.print(newCalibrationValue);
+  Serial.println(", use this as calibration value (calFactor) in your project sketch.");
+
+  Serial.println("End calibration");
+  Serial.println("***");
+  Serial.println("To re-calibrate, send 'r' from serial monitor.");
+  Serial.println("For manual edit of the calibration value, send 'c' from serial monitor.");
+  Serial.println("***");
+}
+#endif
