@@ -30,8 +30,8 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
     dataGeneratorMatrix = []
     dataRowGenerator = 1
     windowSize = 11
-    threshold_percent = 0.5 # a percentage of the currently tracked mean that the new data must be within to affect the rolling average
-    outlier_damp = 1
+    threshold_percent = 0.3 # a percentage of the currently tracked mean that the new data must be within to affect the rolling average
+    outlier_damp = 0.9
     # The number of moving averages you have found
     index = 0
     # threshold flag
@@ -47,9 +47,10 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
             row = rolling_a_q.get()
             if (first_run == True):
                 threshold_flags = [False] * (len(row)-1)
-                prev_mean = [00.00] * (len(row)-1)
+                tracked_mean = [00.00] * (len(row)-1)
                 data_out = [00.00] * (len(row)-1)
                 first_run = False
+                # temp = np.array([])   
             # time.sleep(0.01)
             # # remove white spaces from test data and convert string to float
             # row = list(map(float, row[0].split()))
@@ -76,38 +77,40 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                         # compute average
                         data_out[data_idx] = np.mean(window[:, data_idx+1], axis = 0)
                         # store this average
-                        prev_mean[data_idx] = data_out[data_idx]
+                        tracked_mean[data_idx] = data_out[data_idx]
                         # allow threshold flag, change if targeting certain data for thresholding
                         threshold_flags[data_idx] = True
                     else:
                         # if latest data is OUTSIDE threshold
-                        if (abs(dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][data_idx+1] - prev_mean[data_idx]) > threshold_percent*prev_mean[data_idx]):
+                        if (abs(dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][data_idx+1] - tracked_mean[data_idx]) > threshold_percent*tracked_mean[data_idx]):
                             # simply set the data output to the value outside threshold
                             data_out[data_idx] = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][data_idx+1]
+                            # UNUSED
                             # however, we cant just ignore the value since it might be valid, 
-                            # so apply a weighting to reduce the impact on the mean
-                            temp = window[:, data_idx+1]
-                            temp = temp[-1, data_idx+1]*outlier_damp
-                            prev_mean[data_idx] = np.mean(window[:, data_idx+1], axis = 0)
+                            # so apply a weighting to reduce the impact on the tracked mean
+                            # temp = np.append(temp, window[:, data_idx+1], axis = 1)
+                            # temp = temp[-1, data_idx]*outlier_damp
+                            # simply store the mean with the outlier so it allows the rolling average to still respond to consistent outlier data
+                            tracked_mean[data_idx] = np.mean(window[:, data_idx+1], axis = 0)
 
                         else:
                             # compute average
                             data_out[data_idx] = np.mean(window[:, data_idx+1], axis = 0)
                             # store this average
-                            prev_mean[data_idx] = data_out[data_idx]
+                            tracked_mean[data_idx] = data_out[data_idx]
                             # allow threshold flag, change if targeting certain data for thresholding
                             threshold_flags[data_idx] = True
-
+                
                 # if (threshold_flag == False):
                 #     # dont threshold because either:
                 #     #                       - theres no currently tracked average because we just started
-                #     #                       - the prev_mean was reset and so no threshold 
+                #     #                       - the tracked_mean was reset and so no threshold 
                 #     windowAverage = np.mean(window[:,1:len(row)], axis = 0)
-                #     prev_mean = windowAverage
-                # else: # check data if we need to threshold and also check if prev_mean must be reset
+                #     tracked_mean = windowAverage
+                # else: # check data if we need to threshold and also check if tracked_mean must be reset
                 #     # threshold means if the latest data point is too far off from 
                 #     # the previous mean, output the raw data as valid data
-                #     if (window[-1,1:len(row)] - prev_mean)
+                #     if (window[-1,1:len(row)] - tracked_mean)
                 # # Calculate the average of current window (not avaeraging the timeStep)
                 # windowAverage = np.mean(window[:,1:len(row)], axis = 0)
 
@@ -134,7 +137,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 full_data = np.insert(data_out, 0, timeStep)
                 csv_queue.put(full_data)
                 plot_queue.put(full_data)
-
+                # temp = np.array([])
                 index+=1
 
     print("All data Read!")
