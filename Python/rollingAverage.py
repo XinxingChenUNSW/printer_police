@@ -30,7 +30,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
     dataGeneratorMatrix = []
     dataRowGenerator = 1
     windowSize = 11
-    threshold_percent = 0.3 # a percentage of the currently tracked mean that the new data must be within to affect the rolling average
+    threshold_percent = 0.15 # a percentage of the currently tracked mean that the new data must be within to affect the rolling average
     outlier_damp = 0.9
     # The number of moving averages you have found
     index = 0
@@ -138,6 +138,6 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 csv_queue.put(full_data)
                 plot_queue.put(full_data)
                 # temp = np.array([])
-                index+=1
+                index += 1
 
     print("All data Read!")
