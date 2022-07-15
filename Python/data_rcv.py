@@ -146,15 +146,21 @@ def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
 '''
 CSV writing process
 '''
-def csv_process(csv_q: Queue):
+def csv_process(csv_q: Queue, enable_csv_q: Queue):
     f = open('data_out.csv', 'w')
     writer = csv.writer(f)
+    enable_csv = False
 
     while True:
-        if not csv_q.empty():
-            data = csv_q.get()
-            # flat_data = chain(*data)
-            writer.writerow(data)
+        if not enable_csv_q.empty():
+            enable_csv = enable_csv_q.get()
+        while enable_csv:
+            if not csv_q.empty():
+                data = csv_q.get()
+                # flat_data = chain(*data)
+                writer.writerow(data)
+            else:
+                enable_csv = False
 
 '''
 Connect to wifi
@@ -232,13 +238,14 @@ def start(event, enable_wifi_q):
 def stop(event, enable_wifi_q):
     enable_wifi_q.put(False)
 
-def export_csv(event, enable_wifi_q):
+def export_csv(event, enable_wifi_q, enable_csv_q):
     enable_wifi_q.put(False)
+    enable_csv_q.put(True)
 
 '''
 Plotting function
 '''
-def run_plot(plot_q: Queue, processes: list, enable_wifi_q: Queue):
+def run_plot(plot_q: Queue, processes: list, enable_wifi_q: Queue, enable_csv_q: Queue):
     style.use("fivethirtyeight")
     
     
@@ -255,7 +262,7 @@ def run_plot(plot_q: Queue, processes: list, enable_wifi_q: Queue):
     stop_button.on_clicked(lambda x: stop(x, enable_wifi_q))
     csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
     csv_button = Button(csv_button_axes, 'Export to CSV')
-    csv_button.on_clicked(lambda x: export_csv(x, enable_wifi_q))
+    csv_button.on_clicked(lambda x: export_csv(x, enable_wifi_q, enable_csv_q))
 
 
 
@@ -319,9 +326,10 @@ def main():
     rolling_a_q = Queue()
     csv_q = Queue()
     enable_wifi_q = Queue()
+    enable_csv_q = Queue() 
 
     wifi_p = Process(target=wifi_process, args=(s, rolling_a_q, enable_wifi_q))
-    csv_p = Process(target=csv_process, args=(csv_q,))
+    csv_p = Process(target=csv_process, args=(csv_q, enable_csv_q))
     processing_p = Process(target=rolling_average, args=(rolling_a_q, csv_q, plot_q))
 
 
@@ -332,7 +340,7 @@ def main():
 
     processes = [wifi_p, csv_p, processing_p]
 
-    run_plot(plot_q, processes, enable_wifi_q)
+    run_plot(plot_q, processes, enable_wifi_q, enable_csv_q)
 
 
 if __name__ == "__main__":
