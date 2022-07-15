@@ -7,6 +7,11 @@ from itertools import chain
 import datetime
 
 import time
+import matplotlib
+matplotlib.use('Qt5Agg')
+from PyQt5 import QtWidgets, QtCore
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
@@ -44,6 +49,31 @@ plot_y_lims = [[-50, 50],
                [-50, 50],
                [-50, 50],
                [-10000, -5000]]
+
+#Class for scrollable UI
+class ScrollableWindow(QtWidgets.QMainWindow):
+    def __init__(self, fig):
+        self.qapp = QtWidgets.QApplication([])
+
+        QtWidgets.QMainWindow.__init__(self)
+        self.widget = QtWidgets.QWidget()
+        self.setCentralWidget(self.widget)
+        self.widget.setLayout(QtWidgets.QVBoxLayout())
+        self.widget.layout().setContentsMargins(0,0,0,0)
+        self.widget.layout().setSpacing(0)
+
+        self.fig = fig
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.draw()
+        self.scroll = QtWidgets.QScrollArea(self.widget)
+        self.scroll.setWidget(self.canvas)
+
+        self.nav = NavigationToolbar(self.canvas, self.widget)
+        self.widget.layout().addWidget(self.nav)
+        self.widget.layout().addWidget(self.scroll)
+
+        self.show()
+        exit(self.qapp.exec_()) 
 
 '''
 WiFi data gathering process
@@ -235,12 +265,14 @@ def run_plot(plot_q: Queue, processes: list):
         pos += 1
 
     # TODO: Blit TRUE
-    ani = animation.FuncAnimation(fig, animate, fargs=(plot_q,lines,axs), interval = 1, blit=False)
+    ani = animation.FuncAnimation(fig, animate, fargs=(plot_q,lines,axs), interval = 1, blit=True)
 
     # Set as blockinng for now, close the program by closing the plot window
     # plt.show(block=False)
-    plt.show(block=True)
+    # plt.show(block=True)
 
+    window = ScrollableWindow(fig)
+    
     exit = input("Press Enter to stop: ")
     while (exit != ""):
         exit = input("Press Enter to stop: ")
