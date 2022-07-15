@@ -1,3 +1,4 @@
+from cgitb import enable
 import socket
 import csv
 from struct import unpack
@@ -15,7 +16,7 @@ from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as Navigatio
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib import style
-from matplotlib.widgets import Slider
+from matplotlib.widgets import Slider, Button
 import numpy as np
 
 from typing import List
@@ -53,7 +54,7 @@ plot_y_lims = [[-50, 50],
 #Class for scrollable UI
 class ScrollableWindow(QtWidgets.QMainWindow):
     def __init__(self, fig):
-        self.qapp = QtWidgets.QApplication([])
+        self.qapp = QtWidgets.QApplication.instance()
 
         QtWidgets.QMainWindow.__init__(self)
         self.widget = QtWidgets.QWidget()
@@ -72,26 +73,30 @@ class ScrollableWindow(QtWidgets.QMainWindow):
         self.widget.layout().addWidget(self.nav)
         self.widget.layout().addWidget(self.scroll)
 
-        self.show()
-        exit(self.qapp.exec_()) 
+        self.show()       
 
 '''
 WiFi data gathering process
 '''
-def wifi_process(s: socket, rolling_a_q: Queue) -> None:
+def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
     # Define start and stop bytes
     start_bytes = "START".encode('utf-8')
 
     #size of sensor data from load cells, imus and encoder
-    
+    enable_wifi = True
 
     while True:
         client, addr = s.accept()
         prev = time.time()
         # TODO: Keep track of bytes thrown away
         stored_bytes = bytearray()
+        if not enable_wifi_q.empty():
+            enable_wifi = enable_wifi_q.get()
 
-        while True:
+        while enable_wifi:
+            if not enable_wifi_q.empty():
+                enable_wifi = enable_wifi_q.get()
+
             # Read data, in a buffer double the size of the data structure
             content = client.recv(128)
             if len(content) == 0:
@@ -221,10 +226,19 @@ def animate(frame, plot_q, lines, axs):
 
     return lines
 
+def start(event, enable_wifi_q):
+    enable_wifi_q.put(True)
+
+def stop(event, enable_wifi_q):
+    enable_wifi_q.put(False)
+
+def export_csv(event, enable_wifi_q):
+    enable_wifi_q.put(False)
+
 '''
 Plotting function
 '''
-def run_plot(plot_q: Queue, processes: list):
+def run_plot(plot_q: Queue, processes: list, enable_wifi_q: Queue):
     style.use("fivethirtyeight")
     
     
@@ -232,7 +246,18 @@ def run_plot(plot_q: Queue, processes: list):
     # ax1 = fig.add_subplot(1,1,1)
     # Plot two cols, n/2 rows
     fig, axs = plt.subplots(nrows=math.ceil(num_plots/2), ncols=2, figsize=(20, 15))
-    # TODO: Make this plot scrolling or smaller so we can observe all the data
+
+    start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
+    start_button = Button(start_button_axes, 'Start Live Plotting')
+    start_button.on_clicked(lambda x: start(x, enable_wifi_q))
+    stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
+    stop_button = Button(stop_button_axes, 'Stop Live Plotting')
+    stop_button.on_clicked(lambda x: stop(x, enable_wifi_q))
+    csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
+    csv_button = Button(csv_button_axes, 'Export to CSV')
+    csv_button.on_clicked(lambda x: export_csv(x, enable_wifi_q))
+
+
 
     # Flatten axes for easier use
     axs = list(chain(*axs))
@@ -293,8 +318,9 @@ def main():
     plot_q = Queue()
     rolling_a_q = Queue()
     csv_q = Queue()
+    enable_wifi_q = Queue()
 
-    wifi_p = Process(target=wifi_process, args=(s, rolling_a_q))
+    wifi_p = Process(target=wifi_process, args=(s, rolling_a_q, enable_wifi_q))
     csv_p = Process(target=csv_process, args=(csv_q,))
     processing_p = Process(target=rolling_average, args=(rolling_a_q, csv_q, plot_q))
 
@@ -306,7 +332,7 @@ def main():
 
     processes = [wifi_p, csv_p, processing_p]
 
-    run_plot(plot_q, processes)
+    run_plot(plot_q, processes, enable_wifi_q)
 
 
 if __name__ == "__main__":
