@@ -73,7 +73,8 @@ class ScrollableWindow(QtWidgets.QMainWindow):
         self.widget.layout().addWidget(self.nav)
         self.widget.layout().addWidget(self.scroll)
 
-        self.show()       
+        self.setWindowTitle('Live Plotting Monitoring')
+        self.showMaximized()       
 
 '''
 WiFi data gathering process
