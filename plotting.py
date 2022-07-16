@@ -23,7 +23,15 @@ def animate(i):
 
 ani = animation.FuncAnimation(fig, animate, interval = 30)
 plt.show(block=False)
-
+plotFinish = False
 exit = input("Press Enter to stop: ")
 while (exit != ""):
     exit = input("Press Enter to stop: ")
+    plotFinish = True
+
+if (plotFinish == True):
+    plt.show()
+    dataAverage = np.loadtxt(open("dataAverage.csv", "rb"), delimiter=",").astype("float")
+    lastStep = dataAverage[]
+    x_axis = plt.axes([0.25, 0.1,0.65, 0.03])
+    Slider_position = Slider(x_axis, 'Pos', 0.1, )
