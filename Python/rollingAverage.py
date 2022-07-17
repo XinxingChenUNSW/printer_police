@@ -62,7 +62,8 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # Calculate the average of current window (not avaeraging the timeStep)
                 windowAverage = np.mean(window[:,1:len(row)], axis = 0)
 
-                timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
+                # timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
+                timeStep = dataGeneratorMatrix[-1][0]
 
                 # Store the average of current
                 # window in moving average list
