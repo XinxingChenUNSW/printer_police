@@ -83,61 +83,64 @@ def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
     # Define start and stop bytes
     start_bytes = "START".encode('utf-8')
     #size of sensor data from load cells, imus and encoder
-    enable_wifi = True
+    enable_wifi = False
 
     while True:
         client, addr = s.accept()
         prev = time.time()
         # TODO: Keep track of bytes thrown away
         stored_bytes = bytearray()
-        if not enable_wifi_q.empty():
-            enable_wifi = enable_wifi_q.get()
 
-        while enable_wifi:
+        while True:
             if not enable_wifi_q.empty():
                 enable_wifi = enable_wifi_q.get()
 
             # Read data, in a buffer double the size of the data structure
+            # Need to read data regardless of whether WiFi is enabled.
+            # This ensures WiFi buffer doesn't fill up, and we get new data when enabling WiFi
             content = client.recv(128)
-            if len(content) == 0:
-                break
 
-            curr_t = time.time()
-            # print(curr_t - prev)
-            prev = curr_t
-
-            curr_ptr = -1
-
-            # Find start bytes
-            for i in range(70):
-                if content[i:i+len(start_bytes)] == start_bytes:
-
-                    curr_ptr = i + len(start_bytes)
+            if enable_wifi:
+                
+                if len(content) == 0:
                     break
 
-            if curr_ptr == -1:
-                continue
+                curr_t = time.time()
+                # print(curr_t - prev)
+                prev = curr_t
 
-            data_row = []
-            full_packet_found = True
+                curr_ptr = -1
 
-            # Unpack each struct attribute
-            for idx, size in enumerate(num_bytes):
-                if not full_packet_found:
-                    break
-                # Loop through each float / integer and unpack them
-                for _ in range(size):
-                    # Partial data detected that is not the full data packet
-                    if curr_ptr + 4 > len(content):
-                        full_packet_found = False
+                # Find start bytes
+                for i in range(70):
+                    if content[i:i+len(start_bytes)] == start_bytes:
+
+                        curr_ptr = i + len(start_bytes)
                         break
-                    val = unpack(data_type[idx], content[curr_ptr: curr_ptr + 4])[0]
-                    data_row.append(val)
-                    curr_ptr += 4
 
-            if full_packet_found:
-                rolling_a_q.put(data_row)
-                # csv_q.put(data_row)
+                if curr_ptr == -1:
+                    continue
+
+                data_row = []
+                full_packet_found = True
+
+                # Unpack each struct attribute
+                for idx, size in enumerate(num_bytes):
+                    if not full_packet_found:
+                        break
+                    # Loop through each float / integer and unpack them
+                    for _ in range(size):
+                        # Partial data detected that is not the full data packet
+                        if curr_ptr + 4 > len(content):
+                            full_packet_found = False
+                            break
+                        val = unpack(data_type[idx], content[curr_ptr: curr_ptr + 4])[0]
+                        data_row.append(val)
+                        curr_ptr += 4
+
+                if full_packet_found:
+                    rolling_a_q.put(data_row)
+                    # csv_q.put(data_row)
 
         print("Closing connection")
         client.close()
@@ -182,9 +185,15 @@ def connectWifi():
     return s
 
 # TODO: Make UI look better for button and slider
-#       Integrate with ui-buttons
+#       Abstract some of the functionality like setting up buttons and getting lines out
 class PlotAnimation:
-    def __init__(self, plot_q, processes, enable_wifi_q, enable_csv_q):
+    '''
+    PlotAnimation __init__ function
+    Inputs: plot_q: Queue for gathering plotting data
+            enable_wifi_q: Queue for commanding WiFi to start and stop
+            enable_csv_q: Queue for commanding CSV to start and stop
+    '''
+    def __init__(self, plot_q: Queue, enable_wifi_q: Queue, enable_csv_q: Queue):
         self.timestamps: List[int] = []
         self.plot_data: List[List[float]] = None
         self.curr_t = 0
@@ -194,7 +203,7 @@ class PlotAnimation:
         
         start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
         start_button = Button(start_button_axes, 'Start Live Plotting')
-        start_button.on_clicked(lambda x: self.start(x, enable_wifi_q))
+        start_button.on_clicked(lambda x: self.start(x, enable_wifi_q, plot_q))
         stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
         stop_button = Button(stop_button_axes, 'Stop Live Plotting')
         stop_button.on_clicked(lambda x: self.stop(x, enable_wifi_q))
@@ -202,14 +211,14 @@ class PlotAnimation:
         csv_button = Button(csv_button_axes, 'Export to CSV')
         csv_button.on_clicked(lambda x: self.export_csv(x, enable_wifi_q, enable_csv_q))
 
-        self.plot_slider_ax = plt.axes([0.25, 0.025, 0.65, 0.03])
-        plot_slider = Slider(self.plot_slider_ax, 'Red', 0.0, 1.0, 1.0)
+        self.plot_slider_ax = plt.axes([0.25, 0.025, 0.5, 0.03])
+        plot_slider = Slider(self.plot_slider_ax, 'Overall', 0.0, 1.0, 1.0)
         plot_slider.on_changed(self.update)
 
         self.showall_ax = plt.axes([0.8, 0.025, 0.1, 0.04])
-        button = Button(self.showall_ax, 'Reset', color='gold',
+        display_button = Button(self.showall_ax, 'Display All', color='gold',
                         hovercolor='skyblue')
-        button.on_clicked(self.show_all)
+        display_button.on_clicked(self.show_all)
 
         # Flatten axes for easier use
         self.axs = list(chain(*self.axs))
@@ -246,41 +255,13 @@ class PlotAnimation:
 
         # TODO: Blit TRUE
         self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=(plot_q,), interval = 1, blit=False)
-        # self.ani.pause(fig.canvas.mpl_connect('button_press_event', self.toggle_pause))
-        self.paused = False
-
-        # fig.canvas.mpl_connect('key_release_event', self.toggle_pause)
-        # Set as blockinng for now, close the program by closing the plot window
-        # plt.show(block=False)
-        # plt.show(block=True)
 
         self.window = ScrollableWindow(self.fig)
-        
+
         exit = input("Press Enter to stop: ")
         while (exit != ""):
-            self.toggle_pause()
+            # self.toggle_pause()
             exit = input("Press Enter to stop: ")
-
-        # Kill all processes when program is finished
-        for process in processes:
-            process.terminate()
-
-    '''
-    Pause Animation
-    '''
-    def toggle_pause(self, *args, **kwargs):
-        if self.paused:
-            self.ani.resume()
-            self.plot_slider_ax.set_visible(False)
-            self.showall_ax.set_visible(False)
-        else:
-            self.ani.pause()
-            self.plot_slider_ax.set_visible(True)
-            self.showall_ax.set_visible(True)
-            self.show_all(None)
-
-        
-        self.paused = not self.paused
 
     '''
     Animation callback function for updating plot data
@@ -323,13 +304,17 @@ class PlotAnimation:
 
         return self.lines
 
+    '''
+    Slider update callback
+    Updates the range for each plot depending on position of overall slider
+    '''
     def update(self, val):
-        left = (int)(val * len(self.timestamps))
-        right = left + 300
-
-        if right >= len(self.timestamps):
+        if len(self.timestamps) <= 300:
+            left = 0
             right = len(self.timestamps)
-            left = right - 300 if right >= 300 else 0
+        else:
+            left = (int)(val * (len(self.timestamps) - 300))
+            right = left + 300
 
         time_frame = self.timestamps[left:right]
 
@@ -339,8 +324,10 @@ class PlotAnimation:
         for i in range(len(self.plot_data)):
             self.lines[i].set_data(time_frame, self.plot_data[i][left:right])
         self.fig.canvas.draw_idle()
-        # pass
 
+    '''
+    Show all data points for every plot
+    '''
     def show_all(self, event):
         for ax in self.axs:
             ax.set_xlim([self.timestamps[0], self.timestamps[-1]])
@@ -350,23 +337,41 @@ class PlotAnimation:
 
         self.fig.canvas.draw_idle()
         
-    def start(self, event, enable_wifi_q):
+    '''
+    Start button callback
+    Resumes WiFi, plot animation, and disables slider axes
+    '''
+    def start(self, event, enable_wifi_q, plot_q):
         enable_wifi_q.put(True)
+        self.timestamps = []
+        self.plot_data = None
 
+        # Empty Queue of any remaining items
+        while not plot_q.empty():
+            plot_q.get()
+
+        self.ani.resume()
+        self.plot_slider_ax.set_visible(False)
+        self.showall_ax.set_visible(False)
+
+    '''
+    Stop button callback
+    Pauses WiFi, plot animation, and enables slider axes
+    '''
     def stop(self, event, enable_wifi_q):
         enable_wifi_q.put(False)
+        self.ani.pause()
+        self.plot_slider_ax.set_visible(True)
+        self.showall_ax.set_visible(True)
+        self.show_all(None)
 
+    '''
+    Export csv button callback
+    Commands csv process to write to csv, and stops the plot
+    '''
     def export_csv(self, event, enable_wifi_q, enable_csv_q):
-        enable_wifi_q.put(False)
         enable_csv_q.put(True)
-
-'''
-Plotting function
-NOT USED ANYMORE WITH THE CLASS
-'''
-def run_plot(plot_q: Queue, processes: list, enable_wifi_q: Queue, enable_csv_q: Queue):
-    pass
-    
+        self.stop(None, enable_wifi_q)
 
 
 '''
@@ -387,7 +392,6 @@ def main():
     csv_p = Process(target=csv_process, args=(csv_q, enable_csv_q))
     processing_p = Process(target=rolling_average, args=(rolling_a_q, csv_q, plot_q))
 
-
     # Start Processes
     wifi_p.start()
     csv_p.start()
@@ -395,8 +399,11 @@ def main():
 
     processes = [wifi_p, csv_p, processing_p]
 
-    pa = PlotAnimation(plot_q, processes, enable_wifi_q, enable_csv_q)
-    # run_plot(plot_q, processes, enable_wifi_q, enable_csv_q)
+    pa = PlotAnimation(plot_q, enable_wifi_q, enable_csv_q)
+
+    # Kill all processes when program is finished
+    for process in processes:
+        process.terminate()
 
 
 if __name__ == "__main__":
