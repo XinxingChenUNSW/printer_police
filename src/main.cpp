@@ -403,6 +403,7 @@ void wifiConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
 void wifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
 	Serial.println("Disconnected from WIFI access point");
 	Serial.println("Reconnecting...");
+  WiFi.disconnect();
 	WiFi.begin(ssid, password);
 }
 
