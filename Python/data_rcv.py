@@ -23,26 +23,32 @@ from rollingAverage import rolling_average
 
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
-num_bytes = [1,2,3,3,3,3,1]
+num_bytes = [1,2,3,3,3,3,1,2,2,2]
 data_type = ['i','f','f','f','f','f','i']
 
 lines_to_plot = 15
 num_plots = len(num_bytes) - 1
 
-plot_names = ["Load Cell", "Gyro 1", "Gyro 2", "IMU 1", "IMU 2", "Encoder"]
-ax_colours = [['r', 'b'], ['r', 'b','g'],['r','b','g'],['r', 'b','g'],['r','b','g'],['r']]
+plot_names = ["Load Cell", "Gyro 1", "Gyro 2", "IMU 1", "IMU 2", "Encoder", "Position(mm) vs Time(ms)", "Velocity(mm/ms) vs Time(ms)", "Acceleration(mm/ms^2) vs Time(ms)" ]
+ax_colours = [['r', 'b'], ['r', 'b','g'],['r','b','g'],['r', 'b','g'],['r','b','g'],['r'], ['r'],['r'],['r']]
 ax_labels = [['L1', 'L2'], 
              ['Rotation X', 'Rotation Y', 'Rotation Z'],
              ['Rotation X', 'Rotation Y', 'Rotation Z'],
              ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
              ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
-             ['Count']]
+             ['Count'],
+             ['Position (mm)'],
+             ['Velocity (mm/ms)'],
+             ['Acceleration (mm/ms^2)']]
 
 plot_y_lims = [[-50, 50],
                [-50, 50],
                [-50, 50],
                [-50, 50],
                [-50, 50],
+               [-10000, -5000],
+               [-10000, -5000],
+               [-10000, -5000],
                [-10000, -5000]]
 
 '''

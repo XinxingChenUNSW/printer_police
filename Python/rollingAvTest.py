@@ -48,16 +48,26 @@ with open("test.csv", "r") as readfile:
             print('position',position)
             print(len(windowAverage))
             windowAverage = np.insert(windowAverage,18, position)
-            # calculate velocity 
             if (len(prevWindowAv) == 0):
+              # calculate velocity 
               windowAverage = np.insert(windowAverage,19, 0)
+              # calculate acceleration
+              windowAverage = np.insert(windowAverage,20, 0)
             else:
+              # calculate velocity
               finalDist = position
               finalTime = timeStep
               prevDist = prevWindowAv[18]
               prevTime = prevWindowAv[0]
               velocity = (finalDist-prevDist)/(finalTime-prevTime)
               windowAverage = np.insert(windowAverage,19, velocity)
+              # calculate acceleration
+              finalVel = velocity
+              prevVel = prevWindowAv[19]
+              acceleration = (finalVel-prevVel)/(finalTime-prevTime)
+              windowAverage = np.insert(windowAverage,20, acceleration)
+
+
             with open("dataAverage.csv", 'a') as datafile:
                 writer = csv.writer(datafile)
                 writer.writerow(windowAverage)

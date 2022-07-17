@@ -14,7 +14,7 @@ plt.subplots_adjust(bottom=0.25)
 # Set the x and y axis to some dummy data
 dataAverage = np.loadtxt(open("dataAverage.csv", "rb"), delimiter=",").astype("float")
 t = dataAverage[:,0]
-s = dataAverage[:,19]
+s = dataAverage[:,20]
 
 print('t', t)
 print('s', s)
