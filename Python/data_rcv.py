@@ -1,3 +1,4 @@
+from cgitb import enable
 import socket
 import csv
 from struct import unpack
@@ -53,7 +54,7 @@ plot_y_lims = [[-50, 50],
 #Class for scrollable UI
 class ScrollableWindow(QtWidgets.QMainWindow):
     def __init__(self, fig):
-        self.qapp = QtWidgets.QApplication([])
+        self.qapp = QtWidgets.QApplication.instance()
 
         QtWidgets.QMainWindow.__init__(self)
         self.widget = QtWidgets.QWidget()
@@ -72,25 +73,30 @@ class ScrollableWindow(QtWidgets.QMainWindow):
         self.widget.layout().addWidget(self.nav)
         self.widget.layout().addWidget(self.scroll)
 
-        self.show()
-        # exit(self.qapp.exec_()) 
+        self.setWindowTitle('Live Plotting Monitoring')
+        self.showMaximized()       
 
 '''
 WiFi data gathering process
 '''
-def wifi_process(s: socket, rolling_a_q: Queue) -> None:
+def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
     # Define start and stop bytes
     start_bytes = "START".encode('utf-8')
     #size of sensor data from load cells, imus and encoder
-    
+    enable_wifi = True
 
     while True:
         client, addr = s.accept()
         prev = time.time()
         # TODO: Keep track of bytes thrown away
         stored_bytes = bytearray()
+        if not enable_wifi_q.empty():
+            enable_wifi = enable_wifi_q.get()
 
-        while True:
+        while enable_wifi:
+            if not enable_wifi_q.empty():
+                enable_wifi = enable_wifi_q.get()
+
             # Read data, in a buffer double the size of the data structure
             content = client.recv(128)
             if len(content) == 0:
@@ -140,15 +146,21 @@ def wifi_process(s: socket, rolling_a_q: Queue) -> None:
 '''
 CSV writing process
 '''
-def csv_process(csv_q: Queue):
+def csv_process(csv_q: Queue, enable_csv_q: Queue):
     f = open('data_out.csv', 'w')
     writer = csv.writer(f)
+    enable_csv = False
 
     while True:
-        if not csv_q.empty():
-            data = csv_q.get()
-            # flat_data = chain(*data)
-            writer.writerow(data)
+        if not enable_csv_q.empty():
+            enable_csv = enable_csv_q.get()
+        while enable_csv:
+            if not csv_q.empty():
+                data = csv_q.get()
+                # flat_data = chain(*data)
+                writer.writerow(data)
+            else:
+                enable_csv = False
 
 '''
 Connect to wifi
@@ -172,13 +184,23 @@ def connectWifi():
 # TODO: Make UI look better for button and slider
 #       Integrate with ui-buttons
 class PlotAnimation:
-    def __init__(self, plot_q, processes):
+    def __init__(self, plot_q, processes, enable_wifi_q, enable_csv_q):
         self.timestamps: List[int] = []
         self.plot_data: List[List[float]] = None
         self.curr_t = 0
         self.count = 0
 
         self.fig, self.axs = plt.subplots(nrows=math.ceil(num_plots/2), ncols=2, figsize=(20, 15))
+        
+        start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
+        start_button = Button(start_button_axes, 'Start Live Plotting')
+        start_button.on_clicked(lambda x: self.start(x, enable_wifi_q))
+        stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
+        stop_button = Button(stop_button_axes, 'Stop Live Plotting')
+        stop_button.on_clicked(lambda x: self.stop(x, enable_wifi_q))
+        csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
+        csv_button = Button(csv_button_axes, 'Export to CSV')
+        csv_button.on_clicked(lambda x: self.export_csv(x, enable_wifi_q, enable_csv_q))
 
         self.plot_slider_ax = plt.axes([0.25, 0.025, 0.65, 0.03])
         plot_slider = Slider(self.plot_slider_ax, 'Red', 0.0, 1.0, 1.0)
@@ -327,18 +349,23 @@ class PlotAnimation:
             self.lines[i].set_data(self.timestamps, self.plot_data[i])
 
         self.fig.canvas.draw_idle()
+        
+    def start(self, event, enable_wifi_q):
+        enable_wifi_q.put(True)
+
+    def stop(self, event, enable_wifi_q):
+        enable_wifi_q.put(False)
+
+    def export_csv(self, event, enable_wifi_q, enable_csv_q):
+        enable_wifi_q.put(False)
+        enable_csv_q.put(True)
 
 '''
 Plotting function
 NOT USED ANYMORE WITH THE CLASS
 '''
-def run_plot(plot_q: Queue, processes: list):
-    style.use("fivethirtyeight")
-    
-    
-    # fig = plt.figure()
-    # ax1 = fig.add_subplot(1,1,1)
-    # Plot two cols, n/2 rows
+def run_plot(plot_q: Queue, processes: list, enable_wifi_q: Queue, enable_csv_q: Queue):
+    pass
     
 
 
@@ -353,9 +380,11 @@ def main():
     plot_q = Queue()
     rolling_a_q = Queue()
     csv_q = Queue()
+    enable_wifi_q = Queue()
+    enable_csv_q = Queue() 
 
-    wifi_p = Process(target=wifi_process, args=(s, rolling_a_q))
-    csv_p = Process(target=csv_process, args=(csv_q,))
+    wifi_p = Process(target=wifi_process, args=(s, rolling_a_q, enable_wifi_q))
+    csv_p = Process(target=csv_process, args=(csv_q, enable_csv_q))
     processing_p = Process(target=rolling_average, args=(rolling_a_q, csv_q, plot_q))
 
 
@@ -366,8 +395,8 @@ def main():
 
     processes = [wifi_p, csv_p, processing_p]
 
-    pa = PlotAnimation(plot_q, processes)
-    # run_plot(plot_q, processes)
+    pa = PlotAnimation(plot_q, processes, enable_wifi_q, enable_csv_q)
+    # run_plot(plot_q, processes, enable_wifi_q, enable_csv_q)
 
 
 if __name__ == "__main__":
