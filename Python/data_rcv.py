@@ -29,7 +29,7 @@ from rollingAverage import rolling_average
 
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
-BLITTING = True
+BLITTING = False
 num_bytes = [1,2,3,3,3,3,1]
 data_type = ['i','f','f','f','f','f','i']
 
@@ -54,15 +54,52 @@ plot_y_lims = [[-50, 50],
 
 #Class for scrollable UI
 class ScrollableWindow(QtWidgets.QMainWindow):
-    def __init__(self, fig):
+    def __init__(self, fig, plot_animation, plot_q: Queue, enable_wifi_q: Queue, enable_csv_q: Queue):
         self.qapp = QtWidgets.QApplication.instance()
 
         QtWidgets.QMainWindow.__init__(self)
+
+        button_layout = QtWidgets.QHBoxLayout()
+        display_layout = QtWidgets.QHBoxLayout()
+
+        start_button = QtWidgets.QPushButton("Start Live Plotting", self)
+        start_button.clicked.connect(lambda: self.start_clicked(plot_animation, enable_wifi_q, plot_q))
+        stop_button = QtWidgets.QPushButton("Stop Live Plotting", self)
+        stop_button.clicked.connect(lambda: self.stop_clicked(plot_animation, enable_wifi_q))
+        csv_button = QtWidgets.QPushButton("Export to CSV", self)
+        csv_button.clicked.connect(lambda: self.export_clicked(plot_animation, enable_wifi_q, enable_csv_q))
+        display_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal, self)
+        display_slider.setGeometry(30, 40, 200, 30)
+        display_slider.valueChanged[int].connect(lambda v: plot_animation.update(v))
+        display_slider.hide()
+        display_button = QtWidgets.QPushButton("Display All", self)
+        display_button.clicked.connect(lambda: plot_animation.show_all(None))
+        display_button.hide()
+
+        button_widgets = [
+            start_button, stop_button, csv_button
+        ]
+
+        for w in button_widgets:
+            button_layout.addWidget(w)
+
+        self.display_widgets = [
+            display_slider, display_button
+        ]
+
+        for w in self.display_widgets:
+            display_layout.addWidget(w)
+
+        main_layout = QtWidgets.QVBoxLayout(self)
+        main_layout.addLayout(button_layout)
+        main_layout.addLayout(display_layout)
+
         self.widget = QtWidgets.QWidget()
-        self.setCentralWidget(self.widget)
-        self.widget.setLayout(QtWidgets.QVBoxLayout())
-        self.widget.layout().setContentsMargins(0,0,0,0)
-        self.widget.layout().setSpacing(0)
+        self.setCentralWidget(self.widget)        
+        # self.widget.layout().setContentsMargins(0,0,0,0)
+        # self.widget.layout().setSpacing(0)
+        main_layout.setContentsMargins(0,0,0,0)
+        main_layout.setSpacing(0)
 
         self.fig = fig
         self.canvas = FigureCanvas(self.fig)
@@ -71,11 +108,29 @@ class ScrollableWindow(QtWidgets.QMainWindow):
         self.scroll.setWidget(self.canvas)
 
         self.nav = NavigationToolbar(self.canvas, self.widget)
-        self.widget.layout().addWidget(self.nav)
-        self.widget.layout().addWidget(self.scroll)
+        main_layout.addWidget(self.nav)
+        main_layout.addWidget(self.scroll)
+
+        self.widget.setLayout(main_layout)
 
         self.setWindowTitle('Live Plotting Monitoring')
         self.showMaximized()       
+
+    def start_clicked(self, plot_animation, enable_wifi_q, plot_q):
+        plot_animation.start(None, enable_wifi_q, plot_q)
+        for w in self.display_widgets:
+            w.hide()
+
+    def stop_clicked(self, plot_animation, enable_wifi_q):
+        plot_animation.stop(None, enable_wifi_q)
+        for w in self.display_widgets:
+            w.show()
+
+    def export_clicked(self, plot_animation, enable_wifi_q, enable_csv_q):
+        plot_animation.export_csv(None, enable_wifi_q, enable_csv_q)
+        for w in self.display_widgets:
+            w.show()
+        
 
 '''
 WiFi data gathering process
@@ -207,7 +262,7 @@ class PlotAnimation:
         # TODO: Blit TRUE
         self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=(plot_q,), interval = 1, blit=BLITTING)
 
-        self.window = ScrollableWindow(self.fig)
+        self.window = ScrollableWindow(self.fig, self, plot_q, enable_wifi_q, enable_csv_q)
 
         exit = input("Press Enter to stop: ")
         while (exit != ""):
@@ -253,27 +308,27 @@ class PlotAnimation:
     Setup user interactive features such as sliders and buttons
     '''
     def setup_ui(self, plot_q, enable_wifi_q, enable_csv_q):
-        start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
-        self.start_button = Button(start_button_axes, 'Start Live Plotting')
-        self.start_button.on_clicked(lambda x: self.start(x, enable_wifi_q, plot_q))
-        stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
-        self.stop_button = Button(stop_button_axes, 'Stop Live Plotting')
-        self.stop_button.on_clicked(lambda x: self.stop(x, enable_wifi_q))
-        csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
-        self.csv_button = Button(csv_button_axes, 'Export to CSV')
-        self.csv_button.on_clicked(lambda x: self.export_csv(x, enable_wifi_q, enable_csv_q))
+        # start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
+        # self.start_button = Button(start_button_axes, 'Start Live Plotting')
+        # self.start_button.on_clicked(lambda x: self.start(x, enable_wifi_q, plot_q))
+        # stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
+        # self.stop_button = Button(stop_button_axes, 'Stop Live Plotting')
+        # self.stop_button.on_clicked(lambda x: self.stop(x, enable_wifi_q))
+        # csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
+        # self.csv_button = Button(csv_button_axes, 'Export to CSV')
+        # self.csv_button.on_clicked(lambda x: self.export_csv(x, enable_wifi_q, enable_csv_q))
 
-        self.plot_slider_ax = plt.axes([0.25, 0.025, 0.5, 0.03])
-        self.plot_slider = Slider(self.plot_slider_ax, 'Overall', 0.0, 1.0, 1.0)
-        self.plot_slider.on_changed(self.update)
+        # self.plot_slider_ax = plt.axes([0.25, 0.025, 0.5, 0.03])
+        # self.plot_slider = Slider(self.plot_slider_ax, 'Overall', 0.0, 1.0, 1.0)
+        # self.plot_slider.on_changed(self.update)
 
-        self.showall_ax = plt.axes([0.8, 0.025, 0.1, 0.04])
-        self.display_button = Button(self.showall_ax, 'Display All', color='gold',
-                        hovercolor='skyblue')
-        self.display_button.on_clicked(self.show_all)
-
-        self.plot_slider_ax.set_visible(False)
-        self.showall_ax.set_visible(False)
+        # self.showall_ax = plt.axes([0.8, 0.025, 0.1, 0.04])
+        # self.display_button = Button(self.showall_ax, 'Display All', color='gold',
+        #                 hovercolor='skyblue')
+        # self.display_button.on_clicked(self.show_all)
+        pass
+        # self.plot_slider_ax.set_visible(False)
+        # self.showall_ax.set_visible(False)
 
     '''
     Updating a single frame of the plot, depending on BLITTING
@@ -334,10 +389,13 @@ class PlotAnimation:
     '''
     Slider update callback
     Updates the range for each plot depending on position of overall slider
+    Input: 0 <= val <= 100
     '''
-    def update(self, val):
+    def update(self, val: int):
         # Find left and right indices for our plot range,
         # depending on slider value
+        val = (float)(val / 100)
+
         if len(self.timestamps) <= 300:
             left = 0
             right = len(self.timestamps)
@@ -381,8 +439,8 @@ class PlotAnimation:
         self.update_frame()
 
         self.ani.resume()
-        self.plot_slider_ax.set_visible(False)
-        self.showall_ax.set_visible(False)
+        # self.plot_slider_ax.set_visible(False)
+        # self.showall_ax.set_visible(False)
 
     '''
     Stop button callback
@@ -391,8 +449,8 @@ class PlotAnimation:
     def stop(self, event, enable_wifi_q):
         enable_wifi_q.put(False)
         self.ani.pause()
-        self.plot_slider_ax.set_visible(True)
-        self.showall_ax.set_visible(True)
+        # self.plot_slider_ax.set_visible(True)
+        # self.showall_ax.set_visible(True)
 
         for i in range(len(self.plot_data)):
             self.lines[i].set_data(self.timestamps, self.plot_data[i])
