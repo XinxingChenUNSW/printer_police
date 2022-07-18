@@ -29,6 +29,7 @@ from rollingAverage import rolling_average
 
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
+BLITTING = False
 num_bytes = [1,2,3,3,3,3,1]
 data_type = ['i','f','f','f','f','f','i']
 
@@ -103,6 +104,7 @@ def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
             if enable_wifi:
                 
                 if len(content) == 0:
+                    print("DED")
                     break
 
                 curr_t = time.time()
@@ -199,35 +201,29 @@ class PlotAnimation:
         self.curr_t = 0
         self.count = 0
 
+        self.setup_figure()
+        self.setup_ui(plot_q, enable_wifi_q, enable_csv_q)
+
+        # TODO: Blit TRUE
+        self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=(plot_q,), interval = 1, blit=BLITTING)
+
+        self.window = ScrollableWindow(self.fig)
+
+        exit = input("Press Enter to stop: ")
+        while (exit != ""):
+            exit = input("Press Enter to stop: ")
+
+    '''
+    Setup figure, axes, and lines
+    '''
+    def setup_figure(self):
         self.fig, self.axs = plt.subplots(nrows=math.ceil(num_plots/2), ncols=2, figsize=(20, 15))
-        
-        start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
-        start_button = Button(start_button_axes, 'Start Live Plotting')
-        start_button.on_clicked(lambda x: self.start(x, enable_wifi_q, plot_q))
-        stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
-        stop_button = Button(stop_button_axes, 'Stop Live Plotting')
-        stop_button.on_clicked(lambda x: self.stop(x, enable_wifi_q))
-        csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
-        csv_button = Button(csv_button_axes, 'Export to CSV')
-        csv_button.on_clicked(lambda x: self.export_csv(x, enable_wifi_q, enable_csv_q))
-
-        self.plot_slider_ax = plt.axes([0.25, 0.025, 0.5, 0.03])
-        plot_slider = Slider(self.plot_slider_ax, 'Overall', 0.0, 1.0, 1.0)
-        plot_slider.on_changed(self.update)
-
-        self.showall_ax = plt.axes([0.8, 0.025, 0.1, 0.04])
-        display_button = Button(self.showall_ax, 'Display All', color='gold',
-                        hovercolor='skyblue')
-        display_button.on_clicked(self.show_all)
 
         # Flatten axes for easier use
         self.axs = list(chain(*self.axs))
 
         self.lines = []
         pos = 0
-
-        self.plot_slider_ax.set_visible(False)
-        self.showall_ax.set_visible(False)
 
         # Configure axes and lines
         for ax in self.axs:
@@ -253,15 +249,41 @@ class PlotAnimation:
 
             pos += 1
 
-        # TODO: Blit TRUE
-        self.ani = animation.FuncAnimation(self.fig, self.animate, fargs=(plot_q,), interval = 1, blit=False)
+    '''
+    Setup user interactive features such as sliders and buttons
+    '''
+    def setup_ui(self, plot_q, enable_wifi_q, enable_csv_q):
+        start_button_axes = plt.axes([0.2, 0.95, 0.2, 0.05])
+        self.start_button = Button(start_button_axes, 'Start Live Plotting')
+        self.start_button.on_clicked(lambda x: self.start(x, enable_wifi_q, plot_q))
+        stop_button_axes = plt.axes([0.5, 0.95, 0.2, 0.05])
+        self.stop_button = Button(stop_button_axes, 'Stop Live Plotting')
+        self.stop_button.on_clicked(lambda x: self.stop(x, enable_wifi_q))
+        csv_button_axes = plt.axes([0.8, 0.95, 0.2, 0.05])
+        self.csv_button = Button(csv_button_axes, 'Export to CSV')
+        self.csv_button.on_clicked(lambda x: self.export_csv(x, enable_wifi_q, enable_csv_q))
 
-        self.window = ScrollableWindow(self.fig)
+        self.plot_slider_ax = plt.axes([0.25, 0.025, 0.5, 0.03])
+        self.plot_slider = Slider(self.plot_slider_ax, 'Overall', 0.0, 1.0, 1.0)
+        self.plot_slider.on_changed(self.update)
 
-        exit = input("Press Enter to stop: ")
-        while (exit != ""):
-            # self.toggle_pause()
-            exit = input("Press Enter to stop: ")
+        self.showall_ax = plt.axes([0.8, 0.025, 0.1, 0.04])
+        self.display_button = Button(self.showall_ax, 'Display All', color='gold',
+                        hovercolor='skyblue')
+        self.display_button.on_clicked(self.show_all)
+
+        self.plot_slider_ax.set_visible(False)
+        self.showall_ax.set_visible(False)
+
+    '''
+    Updating a single frame of the plot, depending on BLITTING
+    '''
+    def update_frame(self):
+        if BLITTING:
+            for ax in self.axs:
+                self.fig.canvas.blit(ax)
+        else:
+            self.fig.canvas.draw_idle()
 
     '''
     Animation callback function for updating plot data
@@ -274,7 +296,7 @@ class PlotAnimation:
         plot_frame = [[] for _ in range(lines_to_plot)]
 
         if plot_q.empty():
-            return self.lines
+            return self.lines 
 
         # Grab all data points currently in the data queue for plotting
         while not plot_q.empty():
@@ -323,7 +345,8 @@ class PlotAnimation:
 
         for i in range(len(self.plot_data)):
             self.lines[i].set_data(time_frame, self.plot_data[i][left:right])
-        self.fig.canvas.draw_idle()
+
+        self.update_frame()
 
     '''
     Show all data points for every plot
@@ -335,7 +358,7 @@ class PlotAnimation:
         for i in range(len(self.plot_data)):
             self.lines[i].set_data(self.timestamps, self.plot_data[i])
 
-        self.fig.canvas.draw_idle()
+        self.update_frame()
         
     '''
     Start button callback
@@ -349,6 +372,11 @@ class PlotAnimation:
         # Empty Queue of any remaining items
         while not plot_q.empty():
             plot_q.get()
+
+        # Draw an empty frame to allow blitting to resume
+        for i in range(lines_to_plot):
+            self.lines[i].set_data([], [])
+        self.update_frame()
 
         self.ani.resume()
         self.plot_slider_ax.set_visible(False)
