@@ -29,7 +29,7 @@ from rollingAverage import rolling_average
 
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
-BLITTING = False
+BLITTING = True
 num_bytes = [1,2,3,3,3,3,1]
 data_type = ['i','f','f','f','f','f','i']
 
@@ -280,8 +280,10 @@ class PlotAnimation:
     '''
     def update_frame(self):
         if BLITTING:
-            for ax in self.axs:
-                self.fig.canvas.blit(ax)
+            # TODO: Test if this canvas.blit works on windows machine
+            self.fig.canvas.draw_idle()
+            # for ax in self.axs:
+            #     self.fig.canvas.blit(ax.bbox)
         else:
             self.fig.canvas.draw_idle()
 
@@ -323,6 +325,9 @@ class PlotAnimation:
         # Set data for each line
         for i in range(len(plot_frame)):
             self.lines[i].set_data(time_frame, plot_frame[i])
+            self.lines[i]
+
+        
 
         return self.lines
 
@@ -331,6 +336,8 @@ class PlotAnimation:
     Updates the range for each plot depending on position of overall slider
     '''
     def update(self, val):
+        # Find left and right indices for our plot range,
+        # depending on slider value
         if len(self.timestamps) <= 300:
             left = 0
             right = len(self.timestamps)
@@ -340,11 +347,9 @@ class PlotAnimation:
 
         time_frame = self.timestamps[left:right]
 
+        # Update plot x limits and data stored in the lines
         for ax in self.axs:
             ax.set_xlim([time_frame[0], time_frame[-1]])
-
-        for i in range(len(self.plot_data)):
-            self.lines[i].set_data(time_frame, self.plot_data[i][left:right])
 
         self.update_frame()
 
@@ -354,9 +359,6 @@ class PlotAnimation:
     def show_all(self, event):
         for ax in self.axs:
             ax.set_xlim([self.timestamps[0], self.timestamps[-1]])
-
-        for i in range(len(self.plot_data)):
-            self.lines[i].set_data(self.timestamps, self.plot_data[i])
 
         self.update_frame()
         
@@ -391,6 +393,10 @@ class PlotAnimation:
         self.ani.pause()
         self.plot_slider_ax.set_visible(True)
         self.showall_ax.set_visible(True)
+
+        for i in range(len(self.plot_data)):
+            self.lines[i].set_data(self.timestamps, self.plot_data[i])
+
         self.show_all(None)
 
     '''
@@ -427,6 +433,7 @@ def main():
 
     processes = [wifi_p, csv_p, processing_p]
 
+    # Run our plot
     pa = PlotAnimation(plot_q, enable_wifi_q, enable_csv_q)
 
     # Kill all processes when program is finished
