@@ -3,13 +3,13 @@
 
 // GLOBAL ENABLES
 // Select which sensors / functionalities are enabled
-// #define LOAD_CELLS
-// #define MPU
-// #define ENCODER
+#define LOAD_CELLS
+#define MPU
+#define ENCODER
 #define WIFI
 // #define LOAD_CELL_CALIBRATION_1
 // #define LOAD_CELL_CALIBRATION_2
-#define TESTING
+// #define TESTING
 
 
 

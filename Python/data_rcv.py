@@ -1,4 +1,3 @@
-from cgitb import enable
 import socket
 import csv
 from struct import unpack
@@ -29,7 +28,7 @@ from rollingAverage import rolling_average
 
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
-BLITTING = False
+BLITTING = True
 num_bytes = [1,2,3,3,3,3,1]
 data_type = ['i','f','f','f','f','f','i']
 
@@ -48,9 +47,9 @@ ax_labels = [['L1', 'L2'],
 plot_y_lims = [[-50, 50],
                [-50, 50],
                [-50, 50],
-               [-50, 50],
-               [-50, 50],
-               [-10000, -5000]]
+               [-5000, 20000],
+               [-5000, 20000],
+               [-10000, 10000]]
 
 #Class for scrollable UI
 class ScrollableWindow(QtWidgets.QMainWindow):
@@ -338,7 +337,9 @@ class PlotAnimation:
             # TODO: Test if this canvas.blit works on windows machine
             self.fig.canvas.draw_idle()
             # for ax in self.axs:
-            #     self.fig.canvas.blit(ax.bbox)
+            # self.fig.canvas.blit(ax.bbox)
+            # self.fig.canvas.blit(self.fig.bbox)
+            # self.fig.canvas.flush_events()
         else:
             self.fig.canvas.draw_idle()
 
@@ -415,10 +416,15 @@ class PlotAnimation:
     Show all data points for every plot
     '''
     def show_all(self, event):
-        for ax in self.axs:
-            ax.set_xlim([self.timestamps[0], self.timestamps[-1]])
-
+        for i in range(lines_to_plot):
+            self.lines[i].set_data([], [])
         self.update_frame()
+
+        if self.timestamps:
+            for ax in self.axs:
+                ax.set_xlim([self.timestamps[0], self.timestamps[-1]])
+
+            self.update_frame()
         
     '''
     Start button callback
