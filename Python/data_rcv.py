@@ -29,24 +29,26 @@ from rollingAverage import rolling_average
 # TODO: Abstract these into a configuration file, these values can be set and changed from there.
 # Data Configurations
 
-num_bytes = [1,2,3,3,3,3,1,2,2,2]
+data_bytes = [1, 2, 3, 3, 3, 3, 1]
 BLITTING = True
 data_type = ['i','f','f','f','f','f','i']
 
-lines_to_plot = 15
+num_bytes = [1,2,3,3,3,3,1,1,1,1]
+
+lines_to_plot = sum(num_bytes) - 1
 num_plots = len(num_bytes) - 1
 
 plot_names = ["Load Cell", "Gyro 1", "Gyro 2", "IMU 1", "IMU 2", "Encoder", "Position(mm) vs Time(ms)", "Velocity(mm/ms) vs Time(ms)", "Acceleration(mm/ms^2) vs Time(ms)" ]
-ax_colours = [['r', 'b'], ['r', 'b','g'],['r','b','g'],['r', 'b','g'],['r','b','g'],['r'], ['r'],['r'],['r']]
+ax_colours = [['r', 'b'], ['r', 'b','g'],['r','b','g'],['r', 'b','g'],['r','b','g'],['r'], ['r', 'b'],['r', 'b'],['r', 'b']]
 ax_labels = [['L1', 'L2'], 
              ['Rotation X', 'Rotation Y', 'Rotation Z'],
              ['Rotation X', 'Rotation Y', 'Rotation Z'],
              ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
              ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
              ['Count'],
-             ['Position (mm)'],
-             ['Velocity (mm/ms)'],
-             ['Acceleration (mm/ms^2)']]
+             ['Position 1', 'Position 2'],
+             ['Velocity 1', 'Velocity 2'],
+             ['Acceleration1', 'Acceleration 2']]
 
 plot_y_lims = [[-50, 50],
                [-50, 50],
@@ -151,6 +153,8 @@ def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
 
     while True:
         client, addr = s.accept()
+        print("Connected to socket at address " + str(addr))
+
         prev = time.time()
         # TODO: Keep track of bytes thrown away
         stored_bytes = bytearray()
@@ -190,7 +194,7 @@ def wifi_process(s: socket, rolling_a_q: Queue, enable_wifi_q: Queue) -> None:
                 full_packet_found = True
 
                 # Unpack each struct attribute
-                for idx, size in enumerate(num_bytes):
+                for idx, size in enumerate(data_bytes):
                     if not full_packet_found:
                         break
                     # Loop through each float / integer and unpack them
@@ -425,9 +429,6 @@ class PlotAnimation:
     Show all data points for every plot
     '''
     def show_all(self, event):
-        for i in range(lines_to_plot):
-            self.lines[i].set_data([], [])
-        self.update_frame()
 
         if self.timestamps:
             for ax in self.axs:

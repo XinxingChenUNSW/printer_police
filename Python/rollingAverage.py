@@ -79,27 +79,27 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # windowAverage = [timeStep] + loads + gyro1 + gyro2 + acc1 + acc2 + windowAverage[14:]
 
                 windowAverage = np.insert(windowAverage,0, timeStep)
-                encoderCount = windowAverage[15]
+                encoderCount = windowAverage[-1]
                 position = encoderCount*milliPerCount
-                windowAverage = np.insert(windowAverage,18, position)
+                windowAverage = np.insert(windowAverage,len(windowAverage), position)
                 if (len(prevWindowAv) == 0):
                     # calculate velocity 
-                    windowAverage = np.insert(windowAverage,19, 0)
+                    windowAverage = np.insert(windowAverage,len(windowAverage), 0)
                     # calculate acceleration
-                    windowAverage = np.insert(windowAverage,20, 0)
+                    windowAverage = np.insert(windowAverage,len(windowAverage), 0)
                 else:
                 # calculate velocity
                     finalDist = position
                     finalTime = timeStep
-                    prevDist = prevWindowAv[18]
+                    prevDist = prevWindowAv[len(windowAverage)]
                     prevTime = prevWindowAv[0]
                     velocity = (finalDist-prevDist)/(finalTime-prevTime)
-                    windowAverage = np.insert(windowAverage,19, velocity)
+                    windowAverage = np.insert(windowAverage,len(windowAverage), velocity)
                     # calculate acceleration
                     finalVel = velocity
-                    prevVel = prevWindowAv[19]
+                    prevVel = prevWindowAv[len(windowAverage)]
                     acceleration = (finalVel-prevVel)/(finalTime-prevTime)
-                    windowAverage = np.insert(windowAverage,20, acceleration)
+                    windowAverage = np.insert(windowAverage,len(windowAverage), acceleration)
                 # with open("dataAverage.csv", 'a') as datafile:
                 #     writer = csv.writer(datafile)
                 #     writer.writerow(windowAverage)
@@ -107,7 +107,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
 
                 csv_queue.put(windowAverage)
                 plot_queue.put(windowAverage)
-                prevWindowAv = plot_queue.get()
+                prevWindowAv = windowAverage
 
                 index+=1
 
