@@ -30,8 +30,6 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
     dataGeneratorMatrix = []
     dataRowGenerator = 1
     windowSize = 11
-    prevWindowAv =[]
-    milliPerCount = (1.0000)/(28.3465)
     # The number of moving averages you have found
     index = 0
 
@@ -64,8 +62,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # Calculate the average of current window (not avaeraging the timeStep)
                 windowAverage = np.mean(window[:,1:len(row)], axis = 0)
 
-                # timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
-                timeStep = dataGeneratorMatrix[-1][0]
+                timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
 
                 # Store the average of current
                 # window in moving average list
@@ -79,35 +76,15 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # windowAverage = [timeStep] + loads + gyro1 + gyro2 + acc1 + acc2 + windowAverage[14:]
 
                 windowAverage = np.insert(windowAverage,0, timeStep)
-                encoderCount = windowAverage[15]
-                position = encoderCount*milliPerCount
-                windowAverage = np.insert(windowAverage,18, position)
-                if (len(prevWindowAv) == 0):
-                    # calculate velocity 
-                    windowAverage = np.insert(windowAverage,19, 0)
-                    # calculate acceleration
-                    windowAverage = np.insert(windowAverage,20, 0)
-                else:
-                # calculate velocity
-                    finalDist = position
-                    finalTime = timeStep
-                    prevDist = prevWindowAv[18]
-                    prevTime = prevWindowAv[0]
-                    velocity = (finalDist-prevDist)/(finalTime-prevTime)
-                    windowAverage = np.insert(windowAverage,19, velocity)
-                    # calculate acceleration
-                    finalVel = velocity
-                    prevVel = prevWindowAv[19]
-                    acceleration = (finalVel-prevVel)/(finalTime-prevTime)
-                    windowAverage = np.insert(windowAverage,20, acceleration)
+
                 # with open("dataAverage.csv", 'a') as datafile:
                 #     writer = csv.writer(datafile)
                 #     writer.writerow(windowAverage)
 
+                
 
                 csv_queue.put(windowAverage)
                 plot_queue.put(windowAverage)
-                prevWindowAv = plot_queue.get()
 
                 index+=1
 
