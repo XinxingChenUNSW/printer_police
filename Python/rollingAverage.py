@@ -60,6 +60,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
 
                 # Store elements from i to i+window_size
                 # in list to get the current window
+                
                 window = np.array(dataGeneratorMatrix[index : index  + windowSize])
                 # Calculate the average of current window (not avaeraging the timeStep)
                 windowAverage = np.mean(window[:,1:len(row)], axis = 0)
@@ -91,13 +92,13 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # calculate velocity
                     finalDist = position
                     finalTime = timeStep
-                    prevDist = prevWindowAv[len(windowAverage)]
+                    prevDist = prevWindowAv[len(windowAverage) - 1]
                     prevTime = prevWindowAv[0]
                     velocity = (finalDist-prevDist)/(finalTime-prevTime)
                     windowAverage = np.insert(windowAverage,len(windowAverage), velocity)
                     # calculate acceleration
                     finalVel = velocity
-                    prevVel = prevWindowAv[len(windowAverage)]
+                    prevVel = prevWindowAv[len(windowAverage) - 1]
                     acceleration = (finalVel-prevVel)/(finalTime-prevTime)
                     windowAverage = np.insert(windowAverage,len(windowAverage), acceleration)
                 # with open("dataAverage.csv", 'a') as datafile:
