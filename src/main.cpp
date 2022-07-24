@@ -8,7 +8,7 @@
 #define ENCODER
 #define WIFI
 // #define LOAD_CELL_CALIBRATION_1
-#define LOAD_CELL_CALIBRATION_2
+// #define LOAD_CELL_CALIBRATION_2
 // #define TESTING
 
 
@@ -381,9 +381,12 @@ void configureMPU(MPU6500_WE *mpu){
 #endif
 
 bool clientConnect() {
-	if (!client.connect(host, port)) {
+  int err = client.connect(host, port);
+  if (!err) {
+	// if (!client.connect(host, port)) {
 	
-		Serial.println("Connection to host failed");
+		Serial.print("Connection to host failed. Err: ");
+    Serial.println(err);
 		return false;
 	}
 
@@ -403,7 +406,9 @@ void wifiConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
 void wifiDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
 	Serial.println("Disconnected from WIFI access point");
 	Serial.println("Reconnecting...");
-	WiFi.begin(ssid, password);
+  // WiFi.disconnect();
+	// WiFi.begin(ssid, password);
+  WiFi.reconnect();
 }
 
 void clientLost(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -491,14 +496,13 @@ void wifiTask(void *parameter) {
 				wifi_send_data(buf, sizeof(startBytes) - 1);
 			else {
 				WiFi.disconnect();
-				clientConnect();
+				// clientConnect();
 			}
 		else {
       // TODO: what we do if WiFi is nont connnnected?
 		}
     curr = millis();
 		if ((curr - t) < target_ms) delay(target_ms - (curr - t) + 1); 
-    Serial.println(curr - t);
 	}
 }
 

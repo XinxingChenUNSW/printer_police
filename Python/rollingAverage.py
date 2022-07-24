@@ -32,6 +32,8 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
     windowSize = 11
     threshold_percent = 0.15 # a percentage of the currently tracked mean that the new data must be within to affect the rolling average
     outlier_damp = 0.9
+    prevWindowAv =[]
+    milliPerCount = (1.0000)/(28.3465)
     # The number of moving averages you have found
     index = 0
     # threshold flag
@@ -70,6 +72,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # Store elements from i to i+window_size
                 # in list to get the current window for every data point
                 # grabs the last windowSize (11 for example) samples 
+
                 window = np.array(dataGeneratorMatrix[index : index  + windowSize])
                 for data_idx in range(threshold_flags):
                     if (threshold_flags[data_idx] == False):
@@ -114,7 +117,6 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # # Calculate the average of current window (not avaeraging the timeStep)
                 # windowAverage = np.mean(window[:,1:len(row)], axis = 0)
 
-
                 # Store the average of current
                 # window in moving average list
                 # insert timestep back into the array
@@ -126,18 +128,40 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # print(loads)
                 # windowAverage = [timeStep] + loads + gyro1 + gyro2 + acc1 + acc2 + windowAverage[14:]
 
+                # timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
+                timeStep = dataGeneratorMatrix[-1][0]
 
+                windowAverage = np.insert(tracked_mean, 0, timeStep)
+                encoderCount = windowAverage[-1]
+                position = encoderCount*milliPerCount
+                windowAverage = np.insert(windowAverage,len(windowAverage), position)
+                if (len(prevWindowAv) == 0):
+                    # calculate velocity 
+                    windowAverage = np.insert(windowAverage,len(windowAverage), 0)
+                    # calculate acceleration
+                    windowAverage = np.insert(windowAverage,len(windowAverage), 0)
+                else:
+                # calculate velocity
+                    finalDist = position
+                    finalTime = timeStep
+                    prevDist = prevWindowAv[len(windowAverage) - 1]
+                    prevTime = prevWindowAv[0]
+                    velocity = (finalDist-prevDist)/(finalTime-prevTime)
+                    windowAverage = np.insert(windowAverage,len(windowAverage), velocity)
+                    # calculate acceleration
+                    finalVel = velocity
+                    prevVel = prevWindowAv[len(windowAverage) - 1]
+                    acceleration = (finalVel-prevVel)/(finalTime-prevTime)
+                    windowAverage = np.insert(windowAverage,len(windowAverage), acceleration)
+                    
                 # with open("dataAverage.csv", 'a') as datafile:
                 #     writer = csv.writer(datafile)
                 #     writer.writerow(windowAverage)
 
-                
+                csv_queue.put(windowAverage)
+                plot_queue.put(windowAverage)
+                prevWindowAv = windowAverage
 
-                timeStep = dataGeneratorMatrix[dataRowGenerator - (windowSize - 1)][0]
-                full_data = np.insert(data_out, 0, timeStep)
-                csv_queue.put(full_data)
-                plot_queue.put(full_data)
-                # temp = np.array([])
-                index += 1
+                index+=1
 
     print("All data Read!")
