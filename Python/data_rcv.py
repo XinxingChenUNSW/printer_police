@@ -221,6 +221,8 @@ CSV writing process
 def csv_process(csv_q: Queue, enable_csv_q: Queue):
     f = open('data_out.csv', 'w')
     writer = csv.writer(f)
+    column_names = ["Timestamp", "Load Cell 1", "Load Cell 2", "Gyro_1_x", "Gyro_1_y", "Gyro_1_z", "Gyro_2_x", "Gyro_2_y", "Gyro_2_z", "Acc_1_X", "Acc_1_Y", "Acc_1_Z", "Acc_2_X", "Acc_2_Y", "Acc_2_Z", "Encoder Count", "Position", "Velocity", "Acceleration"]
+    writer.writerow(column_names)
     enable_csv = False
 
     while True:
