@@ -74,7 +74,7 @@ def rolling_average(rolling_a_q: Queue, csv_queue: Queue, plot_queue: Queue):
                 # grabs the last windowSize (11 for example) samples 
 
                 window = np.array(dataGeneratorMatrix[index : index  + windowSize])
-                for data_idx in range(threshold_flags):
+                for data_idx in range(len(threshold_flags)):
                     if (threshold_flags[data_idx] == False):
                         # dont threshold
                         # compute average

@@ -43,12 +43,12 @@ ax_colours = [['r', 'b'], ['r', 'b','g'],['r','b','g'],['r', 'b','g'],['r','b','
 ax_labels = [['L1', 'L2'], 
              ['Rotation X', 'Rotation Y', 'Rotation Z'],
              ['Rotation X', 'Rotation Y', 'Rotation Z'],
-             ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
-             ['Magnitude Z', 'Magnitude Y', 'Magnitude Z'],
+             ['Magnitude X', 'Magnitude Y', 'Magnitude Z'],
+             ['Magnitude X', 'Magnitude Y', 'Magnitude Z'],
              ['Count'],
-             ['Position 1', 'Position 2'],
-             ['Velocity 1', 'Velocity 2'],
-             ['Acceleration1', 'Acceleration 2']]
+             ['Position'],
+             ['Velocity'],
+             ['Acceleration']]
 
 plot_y_lims = [[-50, 50],
                [-50, 50],

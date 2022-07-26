@@ -7,8 +7,8 @@
 #define MPU
 #define ENCODER
 #define WIFI
-// #define LOAD_CELL_CALIBRATION_1
-// #define LOAD_CELL_CALIBRATION_2
+//#define LOAD_CELL_CALIBRATION_1
+//#define LOAD_CELL_CALIBRATION_2
 // #define TESTING
 
 
@@ -105,11 +105,11 @@ void getSensorData(void * pvParameters) {
     #ifdef LOAD_CELLS
       // only get data if update sucessfully returns with 1 to only fetch valid data
       if (LoadCell_1.update()) {
-        float l1 = LoadCell_1.getData(); //Serial.print(String(l1, 8) + " ");
+        float l1 = LoadCell_1.getData(); //Serial.println("Load cell one"  + String(l1, 8) + " ");
         sensorData.loadCell[0] = l1;
       }
       if (LoadCell_2.update()) {
-        float l2 = LoadCell_2.getData(); //Serial.print(String(l2, 8) + " ");
+        float l2 = LoadCell_2.getData(); //Serial.println("Load cell two"  + String(l2, 8) + " ");
         sensorData.loadCell[1] = l2;
       }
     #endif
@@ -120,8 +120,8 @@ void getSensorData(void * pvParameters) {
       xyzFloat gyr_1 = MPU_1.getGyrValues();
       xyzFloat gyr_2 = MPU_2.getGyrValues();
 
-      sensorData.imu[0] = {.x = acc_1.x, .y = acc_1.y, .z = acc_1.z};
-      sensorData.imu[1] = {.x = acc_2.x, .y = acc_2.y, .z = acc_2.z};
+      sensorData.imu[0] = {.x = acc_1.x / MPU_DIVISOR, .y = acc_1.y / MPU_DIVISOR, .z = acc_1.z / MPU_DIVISOR};
+      sensorData.imu[1] = {.x = acc_2.x / MPU_DIVISOR, .y = acc_2.y / MPU_DIVISOR, .z = acc_2.z / MPU_DIVISOR};
       sensorData.gyro[0] = {.x = gyr_1.x, .y = gyr_1.y, .z = gyr_1.z};
       sensorData.gyro[1] = {.x = gyr_2.x, .y = gyr_2.y, .z = gyr_2.z};
 
@@ -187,8 +187,8 @@ void setup() {
   
   #ifdef LOAD_CELLS
     LoadCell_1.begin(); LoadCell_2.begin();
-    float calibrationValue_1 = (-15861.51-15822.44-15865.00-15947.65-15809.39)/5; // obtained from 5 samples of calibration of varying weight
-    float calibrationValue_2 = 1.0; // calibrationValue_2 = LoadCell_2.getNewCalibration(-500);
+    float calibrationValue_1 = -2109.67;
+    float calibrationValue_2 = 2.22; // calibrationValue_2 = LoadCell_2.getNewCalibration(-500);
     unsigned long stabilisingtime = 2000; // tare precision improved by adding some stabilising time
     boolean _tare = true; // set this to false if you don't want tare to be performed in the next step
     byte loadcell_1_rdy = 0;
