@@ -57,7 +57,7 @@ Note: we have been using the one on "IPv4 Address" for testing, but after testin
 
 # How to perform debugging on the ESP32
 
-*Debugging requires a USB connection between the ESP32 and a computer. 
+*Debugging requires a USB connection between the ESP32 and a computer.* 
 
 1. To perform debugging, add some print statements such as the image below in the main.cpp file where the ESP32 code is located. 
 ![serialprint](https://user-images.githubusercontent.com/42131486/183277930-b9e97f2f-78b6-44a8-b77c-2531c925b616.PNG)
