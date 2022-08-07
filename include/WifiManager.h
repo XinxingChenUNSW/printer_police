@@ -89,7 +89,6 @@
     #define WM_WIFIOPEN   ENC_TYPE_NONE
 
 #elif defined(ESP32)
-
     #include <WiFi.h>
     #include <esp_wifi.h>  
     #include <Update.h>
