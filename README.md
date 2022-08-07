@@ -53,9 +53,9 @@ Note: we have been using the one on "IPv4 Address" for testing, but after testin
 2. After updating the code, press the 'Build' button in the platformIO interface to ensure the code compiles correctly. This is represented by the tick in the image below.
 3. If the build is successful, you can upload the code onto the ESP32 by pressing the 'Upload' button. This is represented by the arrow next to the build button in the image below. 
 
-![platformioui](https://user-images.githubusercontent.com/42131486/183277837-0fd13f86-4359-4edf-a8f9-c3cd7fbe14c4.PNG)
+![buildupload](https://user-images.githubusercontent.com/42131486/183278157-cb4f4fc8-cca1-4a05-8c76-35bd7fffb8c0.PNG)
 
-#How to perform debugging on the ESP32
+# How to perform debugging on the ESP32
 
 *Debugging requires a USB connection between the ESP32 and a computer. 
 
@@ -63,9 +63,9 @@ Note: we have been using the one on "IPv4 Address" for testing, but after testin
 ![serialprint](https://user-images.githubusercontent.com/42131486/183277930-b9e97f2f-78b6-44a8-b77c-2531c925b616.PNG)
 
 2. Open the 'Serial Monitor' in platformIO. This is represented by the power plug button as shown in the image below.
- ![serialmonitor](https://user-images.githubusercontent.com/42131486/183278014-7018200b-79af-4884-93ec-d21e00b032ec.PNG)
+![serialmonitor](https://user-images.githubusercontent.com/42131486/183278014-7018200b-79af-4884-93ec-d21e00b032ec.PNG)
  
- 3. Output should now be viewable. 
+3. Output should now be viewable. 
 
 
 
