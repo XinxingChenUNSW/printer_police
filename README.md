@@ -30,7 +30,7 @@ Note: we have been using the one on "IPv4 Address" for testing, but after testin
 4. Input the WiFI, WiFi IP address (which you found above) as well as the port you wish to connect to (e.g 5000).
 5. Click Save and wait a couple of seconds. 
 
-*If you believe you have input any settings in correctly or want to connect to a different network, disconnect from onDemandAP and reconnect to it and repeat the above steps again. If this does not work, turn off the ESP32 before turning it on again and repeat the above steps again. 
+*If you believe you have input any settings in correctly or want to connect to a different network, disconnect from onDemandAP and reconnect to it and repeat the above steps again. If this does not work, turn off the ESP32 before turning it on again and repeat the above steps again.* 
 
 # How to run the Python script to get the live plots displaying:
 
